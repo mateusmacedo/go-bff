@@ -16,12 +16,14 @@ type WatermillEventBus[E domain.Event[D], D any] struct {
 	publisher message.Publisher
 	handlers  map[string][]application.EventHandler[E, D]
 	mu        sync.RWMutex
+	logger    application.AppLogger
 }
 
-func NewWatermillEventBus[E domain.Event[D], D any](publisher message.Publisher) *WatermillEventBus[E, D] {
+func NewWatermillEventBus[E domain.Event[D], D any](publisher message.Publisher, logger application.AppLogger) *WatermillEventBus[E, D] {
 	return &WatermillEventBus[E, D]{
 		publisher: publisher,
 		handlers:  make(map[string][]application.EventHandler[E, D]),
+		logger:    logger,
 	}
 }
 
@@ -39,24 +41,42 @@ func (bus *WatermillEventBus[E, D]) Publish(ctx context.Context, event E) error 
 	bus.mu.RUnlock()
 
 	if !found {
-		return nil // Nenhum manipulador registrado, consideramos um sucesso silencioso
+		bus.logger.Info(ctx, "no handlers registered", map[string]interface{}{
+			"event_name": eventName,
+		})
+		return nil
 	}
 
 	payload, err := json.Marshal(event.Payload())
 	if err != nil {
+		bus.logger.Error(ctx, "error marshalling event payload", map[string]interface{}{
+			"event_name": eventName,
+			"error":      err,
+		})
 		return err
 	}
 
 	msg := message.NewMessage(watermill.NewUUID(), payload)
 	if err := bus.publisher.Publish(eventName, msg); err != nil {
+		bus.logger.Error(ctx, "error publishing event", map[string]interface{}{
+			"event_name": eventName,
+			"error":      err,
+		})
 		return err
 	}
 
 	for _, handler := range handlers {
 		if err := handler.Handle(ctx, event); err != nil {
+			bus.logger.Error(ctx, "error handling event", map[string]interface{}{
+				"event_name": eventName,
+				"error":      err,
+			})
 			return err
 		}
 	}
 
+	bus.logger.Info(ctx, "event published", map[string]interface{}{
+		"event_name": eventName,
+	})
 	return nil
 }

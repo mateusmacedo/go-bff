@@ -17,13 +17,15 @@ type WatermillQueryBus[Q domain.Query[D], D any, R any] struct {
 	subscriber message.Subscriber
 	handlers   map[string]application.QueryHandler[Q, D, R]
 	mu         sync.RWMutex
+	logger     application.AppLogger
 }
 
-func NewWatermillQueryBus[Q domain.Query[D], D any, R any](publisher message.Publisher, subscriber message.Subscriber) *WatermillQueryBus[Q, D, R] {
+func NewWatermillQueryBus[Q domain.Query[D], D any, R any](publisher message.Publisher, subscriber message.Subscriber, logger application.AppLogger) *WatermillQueryBus[Q, D, R] {
 	return &WatermillQueryBus[Q, D, R]{
 		publisher:  publisher,
 		subscriber: subscriber,
 		handlers:   make(map[string]application.QueryHandler[Q, D, R]),
+		logger:     logger,
 	}
 }
 
@@ -33,16 +35,25 @@ func (bus *WatermillQueryBus[Q, D, R]) RegisterHandler(queryName string, handler
 	bus.handlers[queryName] = handler
 
 	go func() {
-		messages, err := bus.subscriber.Subscribe(context.Background(), queryName)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		messages, err := bus.subscriber.Subscribe(ctx, queryName)
 		if err != nil {
-			panic(err) // Handle error according to your needs
+			bus.logger.Error(ctx, "error subscribing to query", map[string]interface{}{
+				"query_name": queryName,
+				"error":      err,
+			})
+			// Handle error according to your needs
 		}
 
 		for msg := range messages {
 			go func(msg *message.Message) {
 				var payload D
 				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-					// Log the error
+					bus.logger.Error(ctx, "error unmarshalling query payload", map[string]interface{}{
+						"query_name": queryName,
+						"error":      err,
+					})
 					return
 				}
 
@@ -56,26 +67,40 @@ func (bus *WatermillQueryBus[Q, D, R]) RegisterHandler(queryName string, handler
 				if typedQuery, ok := interface{}(query).(Q); ok {
 					result, err := handler.Handle(context.Background(), typedQuery)
 					if err != nil {
-						// Log the error
+						bus.logger.Error(ctx, "error handling query", map[string]interface{}{
+							"query_name": queryName,
+							"error":      err,
+						})
 						return
 					}
 
 					responsePayload, err := json.Marshal(result)
 					if err != nil {
-						// Log the error
+						bus.logger.Error(ctx, "error marshalling query result", map[string]interface{}{
+							"query_name": queryName,
+							"error":      err,
+						})
 						return
 					}
 
 					responseMsg := message.NewMessage(watermill.NewUUID(), responsePayload)
 					if err := bus.publisher.Publish(queryName+"_response", responseMsg); err != nil {
-						// Log the error
+						bus.logger.Error(ctx, "error publishing query response", map[string]interface{}{
+							"query_name": queryName,
+							"error":      err,
+						})
 						return
 					}
 				} else {
-					// Handle error if the type assertion fails
+					bus.logger.Error(ctx, "error asserting query type", map[string]interface{}{
+						"query_name": queryName,
+					})
 					return
 				}
 
+				bus.logger.Info(ctx, "query handled", map[string]interface{}{
+					"query_name": queryName,
+				})
 				msg.Ack()
 			}(msg)
 		}
@@ -85,18 +110,30 @@ func (bus *WatermillQueryBus[Q, D, R]) RegisterHandler(queryName string, handler
 func (bus *WatermillQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, error) {
 	payload, err := json.Marshal(query.Payload())
 	if err != nil {
+		bus.logger.Error(ctx, "error marshalling query payload", map[string]interface{}{
+			"query_name": query.QueryName(),
+			"error":      err,
+		})
 		var zero R
 		return zero, err
 	}
 
 	msg := message.NewMessage(watermill.NewUUID(), payload)
 	if err := bus.publisher.Publish(query.QueryName(), msg); err != nil {
+		bus.logger.Error(ctx, "error publishing query", map[string]interface{}{
+			"query_name": query.QueryName(),
+			"error":      err,
+		})
 		var zero R
 		return zero, err
 	}
 
 	responseMessages, err := bus.subscriber.Subscribe(ctx, query.QueryName()+"_response")
 	if err != nil {
+		bus.logger.Error(ctx, "error subscribing to query response", map[string]interface{}{
+			"query_name": query.QueryName(),
+			"error":      err,
+		})
 		var zero R
 		return zero, err
 	}
@@ -105,12 +142,20 @@ func (bus *WatermillQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R
 	case responseMsg := <-responseMessages:
 		var result R
 		if err := json.Unmarshal(responseMsg.Payload, &result); err != nil {
+			bus.logger.Error(ctx, "error unmarshalling query response", map[string]interface{}{
+				"query_name": query.QueryName(),
+				"error":      err,
+			})
 			var zero R
 			return zero, err
 		}
 		responseMsg.Ack()
 		return result, nil
 	case <-ctx.Done():
+		bus.logger.Error(ctx, "error dispatching query", map[string]interface{}{
+			"query_name": query.QueryName(),
+			"error":      ctx.Err(),
+		})
 		var zero R
 		return zero, ctx.Err()
 	}
