@@ -3,7 +3,6 @@ package adapter
 import (
 	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/ThreeDotsLabs/watermill/message"
@@ -16,13 +15,15 @@ type KafkaEventBus[E domain.Event[D], D any] struct {
 	publisher  *kafka.Publisher
 	subscriber *kafka.Subscriber
 	handlers   map[string][]application.EventHandler[E, D]
+	logger     application.AppLogger
 }
 
-func NewKafkaEventBus[E domain.Event[D], D any](publisher *kafka.Publisher, subscriber *kafka.Subscriber) *KafkaEventBus[E, D] {
+func NewKafkaEventBus[E domain.Event[D], D any](publisher *kafka.Publisher, subscriber *kafka.Subscriber, logger application.AppLogger) *KafkaEventBus[E, D] {
 	return &KafkaEventBus[E, D]{
 		publisher:  publisher,
 		subscriber: subscriber,
 		handlers:   make(map[string][]application.EventHandler[E, D]),
+		logger:     logger,
 	}
 }
 
@@ -30,15 +31,25 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 	bus.handlers[eventName] = append(bus.handlers[eventName], handler)
 
 	go func() {
-		messages, err := bus.subscriber.Subscribe(context.Background(), eventName)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		messages, err := bus.subscriber.Subscribe(ctx, eventName)
 		if err != nil {
-			log.Fatalf("could not subscribe to event: %v", err)
+			bus.logger.Error(ctx, "error subscribing to event", map[string]interface{}{
+				"event_name": eventName,
+				"error":      err,
+			})
+			return
 		}
 
 		for msg := range messages {
 			go func(msg *message.Message) {
 				var payload D
 				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					bus.logger.Error(ctx, "error unmarshalling event payload", map[string]interface{}{
+						"event_name": eventName,
+						"error":      err,
+					})
 					msg.Nack()
 					return
 				}
@@ -51,15 +62,25 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 				if typedEvent, ok := interface{}(event).(E); ok {
 					for _, handler := range bus.handlers[eventName] {
 						if err := handler.Handle(context.Background(), typedEvent); err != nil {
+							bus.logger.Error(ctx, "error handling event", map[string]interface{}{
+								"event_name": eventName,
+								"error":      err,
+							})
 							msg.Nack()
 							return
 						}
 					}
 				} else {
+					bus.logger.Error(ctx, "error asserting event type", map[string]interface{}{
+						"event_name": eventName,
+					})
 					msg.Nack()
 					return
 				}
 
+				bus.logger.Info(ctx, "event handled", map[string]interface{}{
+					"event_name": eventName,
+				})
 				msg.Ack()
 			}(msg)
 		}
