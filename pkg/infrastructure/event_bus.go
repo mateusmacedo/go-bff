@@ -97,7 +97,7 @@ func (bus *simpleEventBus[E, T]) collectErrors(ctx context.Context, errChan <-ch
 		errors = append(errors, err)
 	}
 	if len(errors) > 0 {
-		bus.logger.Error(ctx, "error publishing event", map[string]interface{}{
+		LogError(ctx, bus.logger, "errors publishing event", nil, map[string]interface{}{
 			"errors": errors,
 		})
 		return fmt.Errorf("errors: %v", errors)

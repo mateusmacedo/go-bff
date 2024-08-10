@@ -36,9 +36,8 @@ func (bus *simpleQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, e
 	var zero R
 	if !found {
 		err := errors.New("no handler registered for query")
-		bus.logger.Error(ctx, "no handler registered for query", map[string]interface{}{
+		LogError(ctx, bus.logger, "no handler registered for query", err, map[string]interface{}{
 			"query_name": query.QueryName(),
-			"error":      err,
 		})
 		return zero, err
 	}
@@ -49,9 +48,8 @@ func (bus *simpleQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, e
 	go func() {
 		result, err := handler.Handle(ctx, query)
 		if err != nil {
-			bus.logger.Error(ctx, "error handling query", map[string]interface{}{
+			LogError(ctx, bus.logger, "error handling query", err, map[string]interface{}{
 				"query_name": query.QueryName(),
-				"error":      err,
 			})
 			errChan <- err
 			return
@@ -65,17 +63,16 @@ func (bus *simpleQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, e
 
 	select {
 	case <-ctx.Done():
-		bus.logger.Error(ctx, "context done", nil)
+		LogError(ctx, bus.logger, "context done", ctx.Err(), nil)
 		return zero, ctx.Err()
 	case result := <-resultChan:
-		bus.logger.Info(ctx, "query dispatched", map[string]interface{}{
+		bus.logger.Info(ctx, "query handled", map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 		return result, nil
 	case err := <-errChan:
-		bus.logger.Error(ctx, "error dispatching query", map[string]interface{}{
+		LogError(ctx, bus.logger, "error handling query", err, map[string]interface{}{
 			"query_name": query.QueryName(),
-			"error":      err,
 		})
 		return zero, err
 	}

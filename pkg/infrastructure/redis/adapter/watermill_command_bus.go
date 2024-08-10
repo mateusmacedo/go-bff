@@ -9,6 +9,7 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
+	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type RedisCommandBus[C domain.Command[T], T any] struct {
@@ -35,9 +36,8 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 		defer cancel()
 		messages, err := bus.subscriber.Subscribe(ctx, commandName)
 		if err != nil {
-			bus.logger.Error(ctx, "error subscribing to command", map[string]interface{}{
+			infrastructure.LogError(ctx, bus.logger, "error subscribing to command", err, map[string]interface{}{
 				"command_name": commandName,
-				"error":        err,
 			})
 		}
 
@@ -45,9 +45,8 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 			go func(msg *message.Message) {
 				var payload T
 				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-					bus.logger.Error(ctx, "error unmarshalling command payload", map[string]interface{}{
+					infrastructure.LogError(ctx, bus.logger, "error unmarshalling command payload", err, map[string]interface{}{
 						"command_name": commandName,
-						"error":        err,
 					})
 					msg.Nack()
 					return
@@ -68,7 +67,7 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 						return
 					}
 				} else {
-					bus.logger.Error(ctx, "error asserting command type", map[string]interface{}{
+					infrastructure.LogError(ctx, bus.logger, "error casting command", err, map[string]interface{}{
 						"command_name": commandName,
 					})
 					msg.Nack()
@@ -87,18 +86,16 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 func (bus *RedisCommandBus[C, T]) Dispatch(ctx context.Context, command C) error {
 	payload, err := json.Marshal(command.Payload())
 	if err != nil {
-		bus.logger.Error(ctx, "error marshalling command payload", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error marshalling command payload", err, map[string]interface{}{
 			"command_name": command.CommandName(),
-			"error":        err,
 		})
 		return err
 	}
 
 	msg := message.NewMessage(command.CommandName(), payload)
 	if err := bus.publisher.Publish(command.CommandName(), msg); err != nil {
-		bus.logger.Error(ctx, "error publishing command", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error publishing command", err, map[string]interface{}{
 			"command_name": command.CommandName(),
-			"error":        err,
 		})
 		return err
 	}

@@ -2,7 +2,6 @@ package adapter
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 
 	"github.com/ThreeDotsLabs/watermill"
@@ -10,6 +9,7 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
+	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type WatermillEventBus[E domain.Event[D], D any] struct {
@@ -47,29 +47,26 @@ func (bus *WatermillEventBus[E, D]) Publish(ctx context.Context, event E) error 
 		return nil
 	}
 
-	payload, err := json.Marshal(event.Payload())
+	payload, err := infrastructure.MarshalPayload(event.Payload())
 	if err != nil {
-		bus.logger.Error(ctx, "error marshalling event payload", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error marshalling event payload", err, map[string]interface{}{
 			"event_name": eventName,
-			"error":      err,
 		})
 		return err
 	}
 
 	msg := message.NewMessage(watermill.NewUUID(), payload)
 	if err := bus.publisher.Publish(eventName, msg); err != nil {
-		bus.logger.Error(ctx, "error publishing event", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error publishing event", err, map[string]interface{}{
 			"event_name": eventName,
-			"error":      err,
 		})
 		return err
 	}
 
 	for _, handler := range handlers {
 		if err := handler.Handle(ctx, event); err != nil {
-			bus.logger.Error(ctx, "error handling event", map[string]interface{}{
+			infrastructure.LogError(ctx, bus.logger, "error handling event", err, map[string]interface{}{
 				"event_name": eventName,
-				"error":      err,
 			})
 			return err
 		}
