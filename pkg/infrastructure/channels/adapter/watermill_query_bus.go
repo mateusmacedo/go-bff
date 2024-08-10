@@ -1,4 +1,4 @@
-package channels
+package adapter
 
 import (
 	"context"

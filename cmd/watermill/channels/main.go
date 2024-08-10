@@ -13,7 +13,7 @@ import (
 	"github.com/mateusmacedo/go-bff/internal/domain"
 	"github.com/mateusmacedo/go-bff/internal/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
-	"github.com/mateusmacedo/go-bff/pkg/infrastructure/adapters/channels"
+	"github.com/mateusmacedo/go-bff/pkg/infrastructure/channels/adapter"
 )
 
 func main() {
@@ -36,9 +36,9 @@ func main() {
 	findHandler := app.NewFindPassageHandler(repository)
 
 	// Criação dos barramentos usando Watermill
-	commandBus := channels.NewWatermillCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](pubSub, pubSub)
-	queryBus := channels.NewWatermillQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](pubSub, pubSub)
-	eventBus := channels.NewWatermillEventBus[pkgDomain.Event[string], string](pubSub)
+	commandBus := adapter.NewWatermillCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](pubSub, pubSub)
+	queryBus := adapter.NewWatermillQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](pubSub, pubSub)
+	eventBus := adapter.NewWatermillEventBus[pkgDomain.Event[string], string](pubSub)
 
 	// Registro dos handlers nos barramentos
 	commandBus.RegisterHandler("ReservePassage", reserveHandler)
