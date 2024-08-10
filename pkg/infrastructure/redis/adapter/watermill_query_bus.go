@@ -16,13 +16,15 @@ type RedisQueryBus[Q domain.Query[D], D any, R any] struct {
 	publisher  *redisstream.Publisher
 	subscriber *redisstream.Subscriber
 	handlers   map[string]application.QueryHandler[Q, D, R]
+	logger     application.AppLogger
 }
 
-func NewRedisQueryBus[Q domain.Query[D], D any, R any](publisher *redisstream.Publisher, subscriber *redisstream.Subscriber) *RedisQueryBus[Q, D, R] {
+func NewRedisQueryBus[Q domain.Query[D], D any, R any](publisher *redisstream.Publisher, subscriber *redisstream.Subscriber, logger application.AppLogger) *RedisQueryBus[Q, D, R] {
 	return &RedisQueryBus[Q, D, R]{
 		publisher:  publisher,
 		subscriber: subscriber,
 		handlers:   make(map[string]application.QueryHandler[Q, D, R]),
+		logger:     logger,
 	}
 }
 
@@ -30,8 +32,14 @@ func (bus *RedisQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 	bus.handlers[queryName] = handler
 
 	go func() {
-		messages, err := bus.subscriber.Subscribe(context.Background(), queryName)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		messages, err := bus.subscriber.Subscribe(ctx, queryName)
 		if err != nil {
+			bus.logger.Error(ctx, "error subscribing to query", map[string]interface{}{
+				"query_name": queryName,
+				"error":      err,
+			})
 			panic(err)
 		}
 
@@ -39,6 +47,10 @@ func (bus *RedisQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 			go func(msg *message.Message) {
 				var payload D
 				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					bus.logger.Error(ctx, "error unmarshalling query payload", map[string]interface{}{
+						"query_name": queryName,
+						"error":      err,
+					})
 					msg.Nack()
 					return
 				}
@@ -51,26 +63,44 @@ func (bus *RedisQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 				if typedQuery, ok := interface{}(query).(Q); ok {
 					result, err := handler.Handle(context.Background(), typedQuery)
 					if err != nil {
+						bus.logger.Error(ctx, "error handling query", map[string]interface{}{
+							"query_name": queryName,
+							"error":      err,
+						})
 						msg.Nack()
 						return
 					}
 
 					responsePayload, err := json.Marshal(result)
 					if err != nil {
+						bus.logger.Error(ctx, "error marshalling query result", map[string]interface{}{
+							"query_name": queryName,
+							"error":      err,
+						})
 						msg.Nack()
 						return
 					}
 
 					responseMsg := message.NewMessage(queryName+"_response", responsePayload)
 					if err := bus.publisher.Publish(queryName+"_response", responseMsg); err != nil {
+						bus.logger.Error(ctx, "error publishing query response", map[string]interface{}{
+							"query_name": queryName,
+							"error":      err,
+						})
 						msg.Nack()
 						return
 					}
 				} else {
+					bus.logger.Error(ctx, "error asserting query type", map[string]interface{}{
+						"query_name": queryName,
+					})
 					msg.Nack()
 					return
 				}
 
+				bus.logger.Info(ctx, "query handled", map[string]interface{}{
+					"query_name": queryName,
+				})
 				msg.Ack()
 			}(msg)
 		}

@@ -15,13 +15,15 @@ type RedisCommandBus[C domain.Command[T], T any] struct {
 	publisher  *redisstream.Publisher
 	subscriber *redisstream.Subscriber
 	handlers   map[string]application.CommandHandler[C, T]
+	logger     application.AppLogger
 }
 
-func NewRedisCommandBus[C domain.Command[T], T any](publisher *redisstream.Publisher, subscriber *redisstream.Subscriber) *RedisCommandBus[C, T] {
+func NewRedisCommandBus[C domain.Command[T], T any](publisher *redisstream.Publisher, subscriber *redisstream.Subscriber, logger application.AppLogger) *RedisCommandBus[C, T] {
 	return &RedisCommandBus[C, T]{
 		publisher:  publisher,
 		subscriber: subscriber,
 		handlers:   make(map[string]application.CommandHandler[C, T]),
+		logger:     logger,
 	}
 }
 
@@ -29,15 +31,24 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 	bus.handlers[commandName] = handler
 
 	go func() {
-		messages, err := bus.subscriber.Subscribe(context.Background(), commandName)
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		messages, err := bus.subscriber.Subscribe(ctx, commandName)
 		if err != nil {
-			panic(err)
+			bus.logger.Error(ctx, "error subscribing to command", map[string]interface{}{
+				"command_name": commandName,
+				"error":        err,
+			})
 		}
 
 		for msg := range messages {
 			go func(msg *message.Message) {
 				var payload T
 				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
+					bus.logger.Error(ctx, "error unmarshalling command payload", map[string]interface{}{
+						"command_name": commandName,
+						"error":        err,
+					})
 					msg.Nack()
 					return
 				}
@@ -48,15 +59,25 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 				}
 
 				if typedCommand, ok := interface{}(command).(C); ok {
-					if err := handler.Handle(context.Background(), typedCommand); err != nil {
+					if err := handler.Handle(ctx, typedCommand); err != nil {
+						bus.logger.Error(ctx, "error handling command", map[string]interface{}{
+							"command_name": commandName,
+							"error":        err,
+						})
 						msg.Nack()
 						return
 					}
 				} else {
+					bus.logger.Error(ctx, "error asserting command type", map[string]interface{}{
+						"command_name": commandName,
+					})
 					msg.Nack()
 					return
 				}
 
+				bus.logger.Info(ctx, "command handled", map[string]interface{}{
+					"command_name": commandName,
+				})
 				msg.Ack()
 			}(msg)
 		}
@@ -66,11 +87,19 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 func (bus *RedisCommandBus[C, T]) Dispatch(ctx context.Context, command C) error {
 	payload, err := json.Marshal(command.Payload())
 	if err != nil {
+		bus.logger.Error(ctx, "error marshalling command payload", map[string]interface{}{
+			"command_name": command.CommandName(),
+			"error":        err,
+		})
 		return err
 	}
 
 	msg := message.NewMessage(command.CommandName(), payload)
 	if err := bus.publisher.Publish(command.CommandName(), msg); err != nil {
+		bus.logger.Error(ctx, "error publishing command", map[string]interface{}{
+			"command_name": command.CommandName(),
+			"error":        err,
+		})
 		return err
 	}
 
