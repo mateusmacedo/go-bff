@@ -9,28 +9,24 @@ import (
 	"github.com/mateusmacedo/go-bff/pkg/domain"
 )
 
-// simpleQueryBus é uma implementação simples de um barramento de consultas.
-type simpleQueryBus[Q domain.Query[T], T any, R any] struct {
-	handlers map[string]application.QueryHandler[Q, T, R]
+type simpleQueryBus[Q domain.Query[D], D any, R any] struct {
+	handlers map[string]application.QueryHandler[Q, D, R]
 	mu       sync.RWMutex
 }
 
-// NewSimpleQueryBus cria uma nova instância de SimpleQueryBus.
-func NewSimpleQueryBus[Q domain.Query[T], T any, R any]() *simpleQueryBus[Q, T, R] {
-	return &simpleQueryBus[Q, T, R]{
-		handlers: make(map[string]application.QueryHandler[Q, T, R]),
+func NewSimpleQueryBus[Q domain.Query[D], D any, R any]() application.QueryBus[Q, D, R] {
+	return &simpleQueryBus[Q, D, R]{
+		handlers: make(map[string]application.QueryHandler[Q, D, R]),
 	}
 }
 
-// RegisterHandler registra um manipulador para uma consulta específica.
-func (bus *simpleQueryBus[Q, T, R]) RegisterHandler(queryName string, handler application.QueryHandler[Q, T, R]) {
+func (bus *simpleQueryBus[Q, D, R]) RegisterHandler(queryName string, handler application.QueryHandler[Q, D, R]) {
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
 	bus.handlers[queryName] = handler
 }
 
-// Dispatch despacha uma consulta para o manipulador registrado usando goroutines.
-func (bus *simpleQueryBus[Q, T, R]) Dispatch(ctx context.Context, query Q) (R, error) {
+func (bus *simpleQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, error) {
 	bus.mu.RLock()
 	handler, found := bus.handlers[query.QueryName()]
 	bus.mu.RUnlock()
