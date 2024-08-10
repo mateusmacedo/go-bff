@@ -21,7 +21,6 @@ func NewGormBusTicketRepository(dsn string, logger pkgApp.AppLogger) (domain.Bus
 		return nil, err
 	}
 
-	// Auto migrate the BusTicket schema
 	err = db.AutoMigrate(&domain.BusTicket{})
 	if err != nil {
 		return nil, err
