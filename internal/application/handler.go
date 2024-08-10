@@ -33,7 +33,6 @@ func (h *reservePassageHandler) Handle(ctx context.Context, command pkgDomain.Co
 			return err
 		}
 
-		// Aqui você pode publicar um evento de passagem reservada.
 		return nil
 	}
 }
