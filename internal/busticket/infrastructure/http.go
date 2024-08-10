@@ -32,7 +32,7 @@ func NewBusTicketHTTPHandler(
 func (h *BusTicketHTTPHandler) HandleReserveBusTicket(w http.ResponseWriter, r *http.Request) {
 	var cmd application.ReserveBusTicketData
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
-		http.Error(w, "Invalid request", http.StatusBadRequest)
+		handleError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -42,15 +42,14 @@ func (h *BusTicketHTTPHandler) HandleReserveBusTicket(w http.ResponseWriter, r *
 	defer cancel()
 
 	if err := h.commandBus.Dispatch(ctx, command); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"message": "Bus ticket reserved", "data": cmd}); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		handleError(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
@@ -66,18 +65,21 @@ func (h *BusTicketHTTPHandler) HandleFindBusTicket(w http.ResponseWriter, r *htt
 
 	busTicket, err := h.queryBus.Dispatch(ctx, query)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		handleError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(busTicket); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		handleError(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 
 func (h *BusTicketHTTPHandler) RegisterRoutes(router chi.Router) {
 	router.Post("/bustickets", h.HandleReserveBusTicket)
 	router.Get("/bustickets/{busTicketID}", h.HandleFindBusTicket)
+}
+
+func handleError(w http.ResponseWriter, message string, statusCode int) {
+	http.Error(w, message, statusCode)
 }
