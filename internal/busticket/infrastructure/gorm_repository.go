@@ -21,8 +21,7 @@ func NewGormBusTicketRepository(dsn string, logger pkgApp.AppLogger) (domain.Bus
 		return nil, err
 	}
 
-	err = db.AutoMigrate(&domain.BusTicket{})
-	if err != nil {
+	if err = db.AutoMigrate(&domain.BusTicket{}); err != nil {
 		return nil, err
 	}
 
@@ -34,11 +33,7 @@ func NewGormBusTicketRepository(dsn string, logger pkgApp.AppLogger) (domain.Bus
 
 func (r *gormBusTicketRepository) Save(ctx context.Context, busTicket domain.BusTicket) error {
 	if err := r.db.WithContext(ctx).Create(&busTicket).Error; err != nil {
-		r.logger.Error(ctx, "failed to save busTicket", map[string]interface{}{
-			"busTicket": busTicket,
-			"error":     err,
-		})
-		return err
+		return logError(ctx, r.logger, "failed to save busTicket", err, busTicket)
 	}
 
 	r.logger.Info(ctx, "busTicket saved", map[string]interface{}{
@@ -51,31 +46,30 @@ func (r *gormBusTicketRepository) FindByPassengerName(ctx context.Context, passe
 	var busTickets []domain.BusTicket
 
 	if err := r.db.WithContext(ctx).Where("passenger_name = ?", passengerName).Find(&busTickets).Error; err != nil {
-		r.logger.Error(ctx, "failed to find busTickets", map[string]interface{}{
-			"passengerName": passengerName,
-			"error":         err,
-		})
-		return nil, err
+		return nil, logError(ctx, r.logger, "failed to find busTickets", err, passengerName)
 	}
 
 	r.logger.Info(ctx, "busTickets found", map[string]interface{}{
 		"busTickets": busTickets,
 	})
-
 	return busTickets, nil
 }
 
 func (r *gormBusTicketRepository) Update(ctx context.Context, busTicket domain.BusTicket) error {
 	if err := r.db.WithContext(ctx).Model(&domain.BusTicket{}).Where("id = ?", busTicket.ID).Updates(busTicket).Error; err != nil {
-		r.logger.Error(ctx, "failed to update busTicket", map[string]interface{}{
-			"busTicket": busTicket,
-			"error":     err,
-		})
-		return err
+		return logError(ctx, r.logger, "failed to update busTicket", err, busTicket)
 	}
 
 	r.logger.Info(ctx, "busTicket updated", map[string]interface{}{
 		"busTicket": busTicket,
 	})
 	return nil
+}
+
+func logError(ctx context.Context, logger pkgApp.AppLogger, message string, err error, details interface{}) error {
+	logger.Error(ctx, message, map[string]interface{}{
+		"details": details,
+		"error":   err,
+	})
+	return err
 }
