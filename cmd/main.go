@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,9 +11,16 @@ import (
 	"github.com/mateusmacedo/go-bff/internal/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	pkgInfra "github.com/mateusmacedo/go-bff/pkg/infrastructure"
+	zapAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/zaplogger/adapter"
 )
 
 func main() {
+	// Criação de um novo logger
+	appLogger, err := zapAdapter.NewZapAppLogger()
+	if err != nil {
+		panic(err)
+	}
+
 	// Configuração do repositório
 	repository := infrastructure.NewInMemoryPassageRepository()
 
@@ -24,13 +30,13 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := application.NewReservePassageHandler(repository, idGenerator)
-	findHandler := application.NewFindPassageHandler(repository)
+	reserveHandler := application.NewReservePassageHandler(repository, idGenerator, appLogger)
+	findHandler := application.NewFindPassageHandler(repository, appLogger)
 
 	// Criação dos barramentos
-	commandBus := pkgInfra.NewSimpleCommandBus[pkgDomain.Command[application.ReservePassageData], application.ReservePassageData]()
-	queryBus := pkgInfra.NewSimpleQueryBus[pkgDomain.Query[application.FindPassageData], application.FindPassageData, domain.Passage]()
-	eventBus := pkgInfra.NewSimpleEventBus[pkgDomain.Event[string], string]()
+	commandBus := pkgInfra.NewSimpleCommandBus[pkgDomain.Command[application.ReservePassageData], application.ReservePassageData](appLogger)
+	queryBus := pkgInfra.NewSimpleQueryBus[pkgDomain.Query[application.FindPassageData], application.FindPassageData, domain.Passage](appLogger)
+	eventBus := pkgInfra.NewSimpleEventBus[pkgDomain.Event[string], string](appLogger)
 
 	// Registro dos handlers nos barramentos
 	commandBus.RegisterHandler("ReservePassage", reserveHandler)
@@ -52,10 +58,15 @@ func main() {
 
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
-		fmt.Println("Erro ao reservar passagem:", err)
+		appLogger.Error(ctx, "Erro ao reservar passagem", map[string]interface{}{
+			"error": err,
+		})
 		return
 	}
-	fmt.Println("Passagem reservada com sucesso!")
+	appLogger.Info(ctx, "Passagem reservada com sucesso", map[string]interface{}{
+		"passengerName": reserveData.PassengerName,
+		"departureTime": reserveData.DepartureTime,
+	})
 
 	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
 	var passageID string
@@ -66,12 +77,6 @@ func main() {
 		}
 	}
 
-	// Verifique se o ID foi encontrado
-	if passageID == "" {
-		fmt.Println("Erro: ID da passagem não encontrado após a reserva.")
-		return
-	}
-
 	// Criando uma consulta para encontrar uma passagem
 	query := application.NewFindPassageQuery(application.FindPassageData{
 		PassageID: passageID, // Use o ID gerado corretamente
@@ -80,14 +85,25 @@ func main() {
 	// Despachando a consulta
 	passage, err := queryBus.Dispatch(ctx, query)
 	if err != nil {
-		fmt.Println("Erro ao encontrar passagem:", err)
+		appLogger.Error(ctx, "Erro ao encontrar passagem", map[string]interface{}{
+			"error": err,
+		})
 	} else {
-		fmt.Printf("Passagem encontrada: %+v\n", passage)
+		appLogger.Info(ctx, "Passagem encontrada", map[string]interface{}{
+			"passengerName": passage.PassengerName,
+			"departureTime": passage.DepartureTime,
+		})
 	}
 
 	// Exemplo de publicação de um evento
 	event := application.NewPassageBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
-		fmt.Println("Erro ao publicar evento:", err)
+		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
+			"error": err,
+		})
+	} else {
+		appLogger.Info(ctx, "Evento publicado com sucesso", map[string]interface{}{
+			"message": event.Payload(),
+		})
 	}
 }
