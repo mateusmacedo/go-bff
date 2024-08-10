@@ -7,6 +7,7 @@ require (
 	github.com/ThreeDotsLabs/watermill v1.3.5
 	github.com/ThreeDotsLabs/watermill-kafka/v2 v2.5.0
 	github.com/ThreeDotsLabs/watermill-redisstream v1.3.0
+	github.com/go-chi/chi/v5 v5.0.8
 	github.com/google/uuid v1.6.0
 	go.uber.org/zap v1.27.0
 )
