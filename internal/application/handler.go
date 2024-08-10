@@ -2,13 +2,13 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/mateusmacedo/go-bff/internal/domain"
 	pkgApp "github.com/mateusmacedo/go-bff/pkg/application"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 )
 
-// reservePassageHandler manipula o comando de reserva de passagem.
 type reservePassageHandler struct {
 	repository  domain.PassageRepository
 	idGenerator pkgDomain.IDGenerator[string]
@@ -17,6 +17,7 @@ type reservePassageHandler struct {
 func (h *reservePassageHandler) Handle(ctx context.Context, command pkgDomain.Command[ReservePassageData]) error {
 	select {
 	case <-ctx.Done():
+		fmt.Println("Contexto cancelado antes do processamento do comando.")
 		return ctx.Err()
 	default:
 		data := command.Payload()
@@ -29,15 +30,17 @@ func (h *reservePassageHandler) Handle(ctx context.Context, command pkgDomain.Co
 			Destination:   data.Destination,
 		}
 
+		fmt.Printf("Tentando salvar passagem: %+v\n", passage)
 		if err := h.repository.Save(passage); err != nil {
+			fmt.Println("Erro ao salvar passagem:", err)
 			return err
 		}
 
+		fmt.Println("Passagem salva com sucesso!")
 		return nil
 	}
 }
 
-// NewReservePassageHandler cria um novo handler para o comando de reserva de passagem.
 func NewReservePassageHandler(repo domain.PassageRepository, idGenerator pkgDomain.IDGenerator[string]) pkgApp.CommandHandler[pkgDomain.Command[ReservePassageData], ReservePassageData] {
 	return &reservePassageHandler{
 		repository:  repo,
@@ -45,7 +48,6 @@ func NewReservePassageHandler(repo domain.PassageRepository, idGenerator pkgDoma
 	}
 }
 
-// findPassageHandler manipula a consulta para encontrar uma passagem.
 type findPassageHandler struct {
 	repository domain.PassageRepository
 }

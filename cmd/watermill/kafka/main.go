@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/google/uuid"
@@ -24,9 +25,9 @@ func main() {
 	// Configuração do marshaler
 	marshaler := kafka.DefaultMarshaler{}
 
-	// Configuração do publisher e subscriber para Kafka
+	// Configuração do publisher para Kafka
 	publisherConfig := kafka.PublisherConfig{
-		Brokers:   []string{"localhost:9092"}, // Altere para o endereço do seu Kafka
+		Brokers:   []string{"localhost:9092"},
 		Marshaler: marshaler,
 	}
 
@@ -36,9 +37,22 @@ func main() {
 	}
 	defer publisher.Close()
 
+	// Configuração do subscriber para Kafka
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Version = sarama.V1_0_0_0
+	saramaConfig.Consumer.Offsets.Initial = sarama.OffsetOldest
+	saramaConfig.Consumer.Return.Errors = true
+	saramaConfig.ClientID = "watermill"
+
 	subscriberConfig := kafka.SubscriberConfig{
-		Brokers:     []string{"localhost:9092"}, // Altere para o endereço do seu Kafka
-		Unmarshaler: marshaler,
+		Brokers:               []string{"localhost:9092"},
+		Unmarshaler:           marshaler,
+		ConsumerGroup:         "example_consumer_group",
+		OverwriteSaramaConfig: saramaConfig,
+		InitializeTopicDetails: &sarama.TopicDetail{
+			NumPartitions:     1,
+			ReplicationFactor: 1,
+		},
 	}
 
 	subscriber, err := kafka.NewSubscriber(subscriberConfig, logger)
@@ -46,6 +60,17 @@ func main() {
 		log.Fatalf("failed to create Kafka subscriber: %v", err)
 	}
 	defer subscriber.Close()
+
+	// Inicialize os tópicos se ainda não existirem
+	err = subscriber.SubscribeInitialize("ReservePassage")
+	if err != nil {
+		log.Fatalf("failed to initialize Kafka topic 'ReservePassage': %v", err)
+	}
+
+	err = subscriber.SubscribeInitialize("FindPassage")
+	if err != nil {
+		log.Fatalf("failed to initialize Kafka topic 'FindPassage': %v", err)
+	}
 
 	// Configuração do repositório
 	repository := infrastructure.NewInMemoryPassageRepository()
@@ -68,8 +93,8 @@ func main() {
 	commandBus.RegisterHandler("ReservePassage", reserveHandler)
 	queryBus.RegisterHandler("FindPassage", findHandler)
 
-	// Criando um contexto com timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Criando um contexto com timeout mais longo
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	// Criando um comando de reserva de passagem
@@ -82,6 +107,7 @@ func main() {
 	}
 	command := app.NewReservePassageCommand(reserveData)
 
+	fmt.Println("Despachando o comando de reserva de passagem...")
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
 		fmt.Println("Erro ao reservar passagem:", err)
@@ -89,8 +115,8 @@ func main() {
 	}
 	fmt.Println("Passagem reservada com sucesso!")
 
-	// Espera breve para permitir o processamento das mensagens
-	time.Sleep(1 * time.Second)
+	// Espera mais longa para permitir o processamento das mensagens
+	time.Sleep(15 * time.Second)
 
 	// Imprimir todos os dados do repositório
 	fmt.Println("Dados do repositório após a reserva:", repository.GetData())
@@ -104,17 +130,12 @@ func main() {
 		}
 	}
 
-	// Verifique se o ID foi encontrado
-	if passageID == "" {
-		fmt.Println("Erro: ID da passagem não encontrado após a reserva.")
-		return
-	}
-
 	// Criando uma consulta para encontrar uma passagem
 	query := app.NewFindPassageQuery(app.FindPassageData{
 		PassageID: passageID,
 	})
 
+	fmt.Println("Despachando a consulta para encontrar a passagem...")
 	// Despachando a consulta
 	passage, err := queryBus.Dispatch(ctx, query)
 	if err != nil {
