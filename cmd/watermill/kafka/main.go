@@ -2,15 +2,17 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	app "github.com/mateusmacedo/go-bff/internal/busticket/application"
+	"github.com/mateusmacedo/go-bff/internal/busticket"
+	"github.com/mateusmacedo/go-bff/internal/busticket/application"
 	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
-	"github.com/mateusmacedo/go-bff/internal/busticket/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	"github.com/mateusmacedo/go-bff/pkg/infrastructure/kafka/adapter"
 	watermillLogAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/watermill/adapter"
@@ -88,99 +90,33 @@ func main() {
 		})
 	}
 
-	// Configuração do repositório
-	repository := infrastructure.NewInMemoryPassageRepository(appLogger)
+	// Criação dos barramentos usando Kafka
+	commandBus := adapter.NewKafkaCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](publisher, subscriber, appLogger)
+	queryBus := adapter.NewKafkaQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket](publisher, subscriber, appLogger)
+	eventBus := adapter.NewKafkaEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
 
 	// Gerador de ID
 	idGenerator := func() string {
 		return uuid.New().String()
 	}
 
-	// Criação dos handlers
-	reserveHandler := app.NewReserveBusTicketHandler(repository, idGenerator, appLogger)
-	findHandler := app.NewFindBusTicketHandler(repository, appLogger)
+	// Criar um contexto de aplicação de ticket de ônibus (BusTicket) utilizando o slice
+	busTicketSlice := busticket.NewBusTicketSlice(commandBus, queryBus, idGenerator, appLogger, eventBus)
 
-	// Criação dos barramentos usando Kafka
-	commandBus := adapter.NewKafkaCommandBus[pkgDomain.Command[app.ReserveBusTicketData], app.ReserveBusTicketData](publisher, subscriber, appLogger)
-	queryBus := adapter.NewKafkaQueryBus[pkgDomain.Query[app.FindBusTicketData], app.FindBusTicketData, domain.BusTicket](publisher, subscriber, appLogger)
-	eventBus := adapter.NewKafkaEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
+	// Configuração do roteador HTTP
+	router := chi.NewRouter()
 
-	// Registro dos handlers nos barramentos
-	commandBus.RegisterHandler("ReservePassage", reserveHandler)
-	queryBus.RegisterHandler("FindPassage", findHandler)
+	// Registro das rotas HTTP
+	busTicketSlice.RegisterRoutes(router)
 
-	// Criando um comando de reserva de passagem
-	reserveData := app.ReserveBusTicketData{
-		PassengerName: "John Doe",
-		DepartureTime: time.Now().Add(24 * time.Hour).Truncate(time.Second),
-		SeatNumber:    12,
-		Origin:        "City A",
-		Destination:   "City B",
-	}
-	command := app.NewReserveBusTicketCommand(reserveData)
-
-	appLogger.Info(ctx, "Despachando o comando para reservar passagem...", map[string]interface{}{
-		"command_name": command.CommandName(),
-		"payload":      command.Payload(),
+	// Iniciando o servidor HTTP
+	serverAddress := ":8080"
+	appLogger.Info(context.Background(), "Starting HTTP server", map[string]interface{}{
+		"address": serverAddress,
 	})
-	// Despachando o comando
-	if err := commandBus.Dispatch(ctx, command); err != nil {
-		appLogger.Error(ctx, "Erro ao reservar passagem", map[string]interface{}{
-			"command_name": command.CommandName(),
-			"payload":      command.Payload(),
-			"error":        err,
-		})
-		return
-	}
-	appLogger.Info(ctx, "Comando de reserva de passagem despachado com sucesso", nil)
-	// Espera mais longa para permitir o processamento das mensagens
-	time.Sleep(15 * time.Second)
-
-	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
-	var passageID string
-	for id, passage := range repository.GetData() {
-		if passage.PassengerName == reserveData.PassengerName && passage.DepartureTime.Equal(reserveData.DepartureTime) {
-			passageID = id
-			break
-		}
-	}
-
-	// Criando uma consulta para encontrar uma passagem
-	query := app.NewFindBusTicketQuery(app.FindBusTicketData{
-		PassageID: passageID,
-	})
-
-	appLogger.Info(ctx, "Despachando a consulta para encontrar passagem...", map[string]interface{}{
-		"query_name": query.QueryName(),
-		"payload":    query.Payload(),
-	})
-	// Despachando a consulta
-	passage, err := queryBus.Dispatch(ctx, query)
-	if err != nil {
-		appLogger.Error(ctx, "Erro ao encontrar passagem", map[string]interface{}{
-			"query_name": query.QueryName(),
-			"payload":    query.Payload(),
-			"error":      err,
-		})
-	} else {
-		appLogger.Info(ctx, "Passagem encontrada", map[string]interface{}{
-			"passengerName": passage.PassengerName,
-			"departureTime": passage.DepartureTime,
-		})
-	}
-
-	// Exemplo de publicação de um evento
-	event := app.NewBusTicketBookedEvent("Passage successfully booked for John Doe")
-	if err := eventBus.Publish(ctx, event); err != nil {
-		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
-			"event_name": event.EventName(),
-			"payload":    event.Payload(),
-			"error":      err,
-		})
-	} else {
-		appLogger.Info(ctx, "Evento publicado com sucesso", map[string]interface{}{
-			"event_name": event.EventName(),
-			"payload":    event.Payload(),
+	if err := http.ListenAndServe(serverAddress, router); err != nil {
+		appLogger.Error(context.Background(), "Failed to start HTTP server", map[string]interface{}{
+			"error": err,
 		})
 	}
 }
