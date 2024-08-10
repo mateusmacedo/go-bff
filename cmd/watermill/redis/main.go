@@ -23,6 +23,8 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	appLogger, err := zapAdapter.NewZapAppLogger()
 	if err != nil {
@@ -33,9 +35,6 @@ func main() {
 
 	redisClient := adapter.NewRedisClient()
 	defer redisClient.Close()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	publisher, err := redisstream.NewPublisher(redisstream.PublisherConfig{
 		Client: redisClient,
