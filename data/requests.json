@@ -1,0 +1,7 @@
+{
+    "PassengerName": "John Doe",
+    "DepartureTime": "2024-08-12T10:00:00Z",
+    "SeatNumber": 12,
+    "Origin": "City A",
+    "Destination": "City B"
+}
