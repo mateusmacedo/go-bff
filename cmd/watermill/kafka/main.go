@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"log"
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/google/uuid"
 
@@ -16,11 +13,19 @@ import (
 	"github.com/mateusmacedo/go-bff/internal/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	"github.com/mateusmacedo/go-bff/pkg/infrastructure/kafka/adapter"
+	watermillLogAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/watermill/adapter"
+	zapAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/zaplogger/adapter"
 )
 
 func main() {
-	// Configuração do logger do Watermill
-	logger := watermill.NewStdLogger(false, false)
+	// Criação de um novo logger
+	appLogger, err := zapAdapter.NewZapAppLogger()
+	if err != nil {
+		panic(err)
+	}
+
+	// Configuração do adaptador de logger
+	logger := watermillLogAdapter.NewWatermillLoggerAdapter(appLogger)
 
 	// Configuração do marshaler
 	marshaler := kafka.DefaultMarshaler{}
@@ -30,10 +35,15 @@ func main() {
 		Brokers:   []string{"localhost:9092"},
 		Marshaler: marshaler,
 	}
+	// Criando um contexto com timeout mais longo
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
 
 	publisher, err := kafka.NewPublisher(publisherConfig, logger)
 	if err != nil {
-		log.Fatalf("failed to create Kafka publisher: %v", err)
+		appLogger.Error(ctx, "Erro ao criar publisher", map[string]interface{}{
+			"error": err,
+		})
 	}
 	defer publisher.Close()
 
@@ -57,19 +67,25 @@ func main() {
 
 	subscriber, err := kafka.NewSubscriber(subscriberConfig, logger)
 	if err != nil {
-		log.Fatalf("failed to create Kafka subscriber: %v", err)
+		appLogger.Error(ctx, "Erro ao criar subscriber", map[string]interface{}{
+			"error": err,
+		})
 	}
 	defer subscriber.Close()
 
 	// Inicialize os tópicos se ainda não existirem
 	err = subscriber.SubscribeInitialize("ReservePassage")
 	if err != nil {
-		log.Fatalf("failed to initialize Kafka topic 'ReservePassage': %v", err)
+		appLogger.Error(ctx, "Erro ao inicializar o tópico 'ReservePassage'", map[string]interface{}{
+			"error": err,
+		})
 	}
 
 	err = subscriber.SubscribeInitialize("FindPassage")
 	if err != nil {
-		log.Fatalf("failed to initialize Kafka topic 'FindPassage': %v", err)
+		appLogger.Error(ctx, "Erro ao inicializar o tópico 'FindPassage'", map[string]interface{}{
+			"error": err,
+		})
 	}
 
 	// Configuração do repositório
@@ -81,21 +97,17 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := app.NewReservePassageHandler(repository, idGenerator)
-	findHandler := app.NewFindPassageHandler(repository)
+	reserveHandler := app.NewReservePassageHandler(repository, idGenerator, appLogger)
+	findHandler := app.NewFindPassageHandler(repository, appLogger)
 
 	// Criação dos barramentos usando Kafka
-	commandBus := adapter.NewKafkaCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](publisher, subscriber)
-	queryBus := adapter.NewKafkaQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](publisher, subscriber)
-	eventBus := adapter.NewKafkaEventBus[pkgDomain.Event[string], string](publisher, subscriber)
+	commandBus := adapter.NewKafkaCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](publisher, subscriber, appLogger)
+	queryBus := adapter.NewKafkaQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](publisher, subscriber, appLogger)
+	eventBus := adapter.NewKafkaEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
 
 	// Registro dos handlers nos barramentos
 	commandBus.RegisterHandler("ReservePassage", reserveHandler)
 	queryBus.RegisterHandler("FindPassage", findHandler)
-
-	// Criando um contexto com timeout mais longo
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
 
 	// Criando um comando de reserva de passagem
 	reserveData := app.ReservePassageData{
@@ -107,19 +119,19 @@ func main() {
 	}
 	command := app.NewReservePassageCommand(reserveData)
 
-	fmt.Println("Despachando o comando de reserva de passagem...")
+	appLogger.Info(ctx, "Despachando o comando para reservar passagem...", map[string]interface{}{
+		"command": command,
+	})
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
-		fmt.Println("Erro ao reservar passagem:", err)
+		appLogger.Error(ctx, "Erro ao reservar passagem", map[string]interface{}{
+			"error": err,
+		})
 		return
 	}
-	fmt.Println("Passagem reservada com sucesso!")
-
+	appLogger.Info(ctx, "Comando de reserva de passagem despachado com sucesso", nil)
 	// Espera mais longa para permitir o processamento das mensagens
 	time.Sleep(15 * time.Second)
-
-	// Imprimir todos os dados do repositório
-	fmt.Println("Dados do repositório após a reserva:", repository.GetData())
 
 	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
 	var passageID string
@@ -135,18 +147,31 @@ func main() {
 		PassageID: passageID,
 	})
 
-	fmt.Println("Despachando a consulta para encontrar a passagem...")
+	appLogger.Info(ctx, "Despachando a consulta para encontrar passagem...", map[string]interface{}{
+		"query": query,
+	})
 	// Despachando a consulta
 	passage, err := queryBus.Dispatch(ctx, query)
 	if err != nil {
-		fmt.Println("Erro ao encontrar passagem:", err)
+		appLogger.Error(ctx, "Erro ao encontrar passagem", map[string]interface{}{
+			"error": err,
+		})
 	} else {
-		fmt.Printf("Passagem encontrada: %+v\n", passage)
+		appLogger.Info(ctx, "Passagem encontrada", map[string]interface{}{
+			"passengerName": passage.PassengerName,
+			"departureTime": passage.DepartureTime,
+		})
 	}
 
 	// Exemplo de publicação de um evento
 	event := app.NewPassageBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
-		fmt.Println("Erro ao publicar evento:", err)
+		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
+			"error": err,
+		})
+	} else {
+		appLogger.Info(ctx, "Evento publicado com sucesso", map[string]interface{}{
+			"event": event,
+		})
 	}
 }

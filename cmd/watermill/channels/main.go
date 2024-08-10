@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"time"
 
-	"github.com/ThreeDotsLabs/watermill"
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/google/uuid"
 
@@ -14,11 +12,19 @@ import (
 	"github.com/mateusmacedo/go-bff/internal/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	"github.com/mateusmacedo/go-bff/pkg/infrastructure/channels/adapter"
+	watermillLogAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/watermill/adapter"
+	zapAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/zaplogger/adapter"
 )
 
 func main() {
-	// Configuração do logger do Watermill
-	logger := watermill.NewStdLogger(false, false)
+	// Criação de um novo logger
+	appLogger, err := zapAdapter.NewZapAppLogger()
+	if err != nil {
+		panic(err)
+	}
+
+	// Configuração do adaptador de logger
+	logger := watermillLogAdapter.NewWatermillLoggerAdapter(appLogger)
 
 	// Configuração do publisher e subscriber em memória
 	pubSub := gochannel.NewGoChannel(gochannel.Config{}, logger)
@@ -32,13 +38,13 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := app.NewReservePassageHandler(repository, idGenerator)
-	findHandler := app.NewFindPassageHandler(repository)
+	reserveHandler := app.NewReservePassageHandler(repository, idGenerator, appLogger)
+	findHandler := app.NewFindPassageHandler(repository, appLogger)
 
 	// Criação dos barramentos usando Watermill
-	commandBus := adapter.NewWatermillCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](pubSub, pubSub)
-	queryBus := adapter.NewWatermillQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](pubSub, pubSub)
-	eventBus := adapter.NewWatermillEventBus[pkgDomain.Event[string], string](pubSub)
+	commandBus := adapter.NewWatermillCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](pubSub, pubSub, appLogger)
+	queryBus := adapter.NewWatermillQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](pubSub, pubSub, appLogger)
+	eventBus := adapter.NewWatermillEventBus[pkgDomain.Event[string], string](pubSub, appLogger)
 
 	// Registro dos handlers nos barramentos
 	commandBus.RegisterHandler("ReservePassage", reserveHandler)
@@ -60,16 +66,15 @@ func main() {
 
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
-		fmt.Println("Erro ao reservar passagem:", err)
+		appLogger.Error(ctx, "Erro ao despachar comando de reserva de passagem", map[string]interface{}{
+			"error": err,
+		})
 		return
 	}
-	fmt.Println("Passagem reservada com sucesso!")
+	appLogger.Info(ctx, "Comando de reserva de passagem despachado com sucesso", nil)
 
 	// Espera breve para permitir o processamento das mensagens
 	time.Sleep(1 * time.Second)
-
-	// Imprimir todos os dados do repositório
-	fmt.Println("Dados do repositório após a reserva:", repository.GetData())
 
 	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
 	var passageID string
@@ -80,12 +85,6 @@ func main() {
 		}
 	}
 
-	// Verifique se o ID foi encontrado
-	if passageID == "" {
-		fmt.Println("Erro: ID da passagem não encontrado após a reserva.")
-		return
-	}
-
 	// Criando uma consulta para encontrar uma passagem
 	query := app.NewFindPassageQuery(app.FindPassageData{
 		PassageID: passageID,
@@ -94,14 +93,22 @@ func main() {
 	// Despachando a consulta
 	passage, err := queryBus.Dispatch(ctx, query)
 	if err != nil {
-		fmt.Println("Erro ao encontrar passagem:", err)
+		appLogger.Error(ctx, "Erro ao despachar consulta para encontrar passagem", map[string]interface{}{
+			"error": err,
+		})
 	} else {
-		fmt.Printf("Passagem encontrada: %+v\n", passage)
+		appLogger.Info(ctx, "Consulta para encontrar passagem despachada com sucesso", map[string]interface{}{
+			"passage": passage,
+		})
 	}
 
 	// Exemplo de publicação de um evento
 	event := app.NewPassageBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
-		fmt.Println("Erro ao publicar evento:", err)
+		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
+			"error": err,
+		})
+	} else {
+		appLogger.Info(ctx, "Evento publicado com sucesso", nil)
 	}
 }
