@@ -33,9 +33,10 @@ func (h *reservePassageHandler) Handle(ctx context.Context, command pkgDomain.Co
 		h.logger.Info(ctx, "Salvando passagem", map[string]interface{}{
 			"passage": passage,
 		})
-		if err := h.repository.Save(passage); err != nil {
+		if err := h.repository.Save(ctx, passage); err != nil {
 			h.logger.Error(ctx, "Erro ao salvar passagem", map[string]interface{}{
-				"error": err,
+				"passage": passage,
+				"error":   err,
 			})
 			return err
 		}
@@ -67,20 +68,21 @@ func (h *findPassageHandler) Handle(ctx context.Context, query pkgDomain.Query[F
 		return domain.Passage{}, ctx.Err()
 	default:
 		data := query.Payload()
-		res, err := h.repository.FindByID(data.PassageID)
+		passage, err := h.repository.FindByID(ctx, data.PassageID)
 		h.logger.Info(ctx, "Encontrando passagem", map[string]interface{}{
-			"passageID": data.PassageID,
+			"passage_id": data.PassageID,
 		})
 		if err != nil {
 			h.logger.Error(ctx, "Erro ao encontrar passagem", map[string]interface{}{
-				"error": err,
+				"passage_id": data.PassageID,
+				"error":      err,
 			})
 			return domain.Passage{}, err
 		}
 		h.logger.Info(ctx, "Passagem encontrada com sucesso", map[string]interface{}{
-			"passage": res,
+			"passage": passage,
 		})
-		return res, nil
+		return passage, nil
 	}
 }
 

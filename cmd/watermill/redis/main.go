@@ -57,7 +57,7 @@ func main() {
 	defer subscriber.Close()
 
 	// Configuração do repositório
-	repository := infrastructure.NewInMemoryPassageRepository()
+	repository := infrastructure.NewInMemoryPassageRepository(appLogger)
 
 	// Gerador de ID
 	idGenerator := func() string {
@@ -89,11 +89,13 @@ func main() {
 	// Despachando o comando
 	command := application.NewReservePassageCommand(reserveData)
 	appLogger.Info(ctx, "Despachando o comando para reservar passagem...", map[string]interface{}{
-		"command": command,
+		"command_name": command.CommandName(),
 	})
 	if err := commandBus.Dispatch(ctx, command); err != nil {
 		appLogger.Error(ctx, "Erro ao reservar passagem", map[string]interface{}{
-			"error": err,
+			"command_name": command.CommandName(),
+			"payload":      command.Payload(),
+			"error":        err,
 		})
 		return
 	}
@@ -120,7 +122,9 @@ func main() {
 	passage, err := queryBus.Dispatch(ctx, query)
 	if err != nil {
 		appLogger.Error(ctx, "Erro ao despachar consulta para encontrar passagem", map[string]interface{}{
-			"error": err,
+			"query_name": query,
+			"payload":    query.Payload(),
+			"error":      err,
 		})
 		return
 	}
@@ -132,8 +136,16 @@ func main() {
 	event := application.NewPassageBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
 		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
-			"error": err,
+			"event_name": event.EventName(),
+			"payload":    event.Payload(),
+			"error":      err,
 		})
 		return
+	} else {
+		appLogger.Info(ctx, "Evento publicado com sucesso", map[string]interface{}{
+			"event_name": event.EventName(),
+			"payload":    event.Payload(),
+		})
 	}
+
 }

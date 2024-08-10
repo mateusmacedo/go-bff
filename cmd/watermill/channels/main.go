@@ -30,7 +30,7 @@ func main() {
 	pubSub := gochannel.NewGoChannel(gochannel.Config{}, logger)
 
 	// Configuração do repositório
-	repository := infrastructure.NewInMemoryPassageRepository()
+	repository := infrastructure.NewInMemoryPassageRepository(appLogger)
 
 	// Gerador de ID
 	idGenerator := func() string {
@@ -67,7 +67,9 @@ func main() {
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
 		appLogger.Error(ctx, "Erro ao despachar comando de reserva de passagem", map[string]interface{}{
-			"error": err,
+			"command_name": command.CommandName(),
+			"payload":      command.Payload(),
+			"error":        err,
 		})
 		return
 	}
@@ -94,7 +96,9 @@ func main() {
 	passage, err := queryBus.Dispatch(ctx, query)
 	if err != nil {
 		appLogger.Error(ctx, "Erro ao despachar consulta para encontrar passagem", map[string]interface{}{
-			"error": err,
+			"query_name": query.QueryName(),
+			"payload":    query.Payload(),
+			"error":      err,
 		})
 	} else {
 		appLogger.Info(ctx, "Consulta para encontrar passagem despachada com sucesso", map[string]interface{}{
@@ -106,9 +110,14 @@ func main() {
 	event := app.NewPassageBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
 		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
-			"error": err,
+			"event_name": event.EventName(),
+			"payload":    event.Payload(),
+			"error":      err,
 		})
 	} else {
-		appLogger.Info(ctx, "Evento publicado com sucesso", nil)
+		appLogger.Info(ctx, "Evento publicado com sucesso", map[string]interface{}{
+			"event_name": event.EventName(),
+			"payload":    event.Payload(),
+		})
 	}
 }

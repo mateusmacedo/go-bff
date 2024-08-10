@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Passage representa uma passagem rodoviária.
 type Passage struct {
@@ -14,7 +17,7 @@ type Passage struct {
 
 // PassageRepository define a interface para o repositório de passagens.
 type PassageRepository interface {
-	Save(passage Passage) error
-	FindByID(id string) (Passage, error)
-	Update(passage Passage) error
+	Save(ctx context.Context, passage Passage) error
+	FindByID(ctx context.Context, id string) (Passage, error)
+	Update(ctx context.Context, passage Passage) error
 }
