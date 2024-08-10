@@ -1,4 +1,3 @@
-// cmd/main.go
 package main
 
 import (
@@ -10,7 +9,7 @@ import (
 	"github.com/ThreeDotsLabs/watermill/pubsub/gochannel"
 	"github.com/google/uuid"
 
-	"github.com/mateusmacedo/go-bff/internal/application"
+	app "github.com/mateusmacedo/go-bff/internal/application"
 	"github.com/mateusmacedo/go-bff/internal/domain"
 	"github.com/mateusmacedo/go-bff/internal/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
@@ -21,7 +20,7 @@ func main() {
 	// Configuração do logger do Watermill
 	logger := watermill.NewStdLogger(false, false)
 
-	// Configuração do publisher em memória
+	// Configuração do publisher e subscriber em memória
 	pubSub := gochannel.NewGoChannel(gochannel.Config{}, logger)
 
 	// Configuração do repositório
@@ -33,12 +32,12 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := application.NewReservePassageHandler(repository, idGenerator)
-	findHandler := application.NewFindPassageHandler(repository)
+	reserveHandler := app.NewReservePassageHandler(repository, idGenerator)
+	findHandler := app.NewFindPassageHandler(repository)
 
 	// Criação dos barramentos usando Watermill
-	commandBus := adapters.NewWatermillCommandBus[pkgDomain.Command[application.ReservePassageData], application.ReservePassageData](pubSub)
-	queryBus := adapters.NewWatermillQueryBus[pkgDomain.Query[application.FindPassageData], application.FindPassageData, domain.Passage](pubSub)
+	commandBus := adapters.NewWatermillCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](pubSub, pubSub)
+	queryBus := adapters.NewWatermillQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](pubSub, pubSub)
 	eventBus := adapters.NewWatermillEventBus[pkgDomain.Event[string], string](pubSub)
 
 	// Registro dos handlers nos barramentos
@@ -50,14 +49,14 @@ func main() {
 	defer cancel()
 
 	// Criando um comando de reserva de passagem
-	reserveData := application.ReservePassageData{
+	reserveData := app.ReservePassageData{
 		PassengerName: "John Doe",
-		DepartureTime: time.Now().Add(24 * time.Hour),
+		DepartureTime: time.Now().Add(24 * time.Hour).Truncate(time.Second),
 		SeatNumber:    12,
 		Origin:        "City A",
 		Destination:   "City B",
 	}
-	command := application.NewReservePassageCommand(reserveData)
+	command := app.NewReservePassageCommand(reserveData)
 
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
@@ -65,6 +64,12 @@ func main() {
 		return
 	}
 	fmt.Println("Passagem reservada com sucesso!")
+
+	// Espera breve para permitir o processamento das mensagens
+	time.Sleep(1 * time.Second)
+
+	// Imprimir todos os dados do repositório
+	fmt.Println("Dados do repositório após a reserva:", repository.GetData())
 
 	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
 	var passageID string
@@ -82,7 +87,7 @@ func main() {
 	}
 
 	// Criando uma consulta para encontrar uma passagem
-	query := application.NewFindPassageQuery(application.FindPassageData{
+	query := app.NewFindPassageQuery(app.FindPassageData{
 		PassageID: passageID,
 	})
 
@@ -95,7 +100,7 @@ func main() {
 	}
 
 	// Exemplo de publicação de um evento
-	event := application.NewPassageBookedEvent("Passage successfully booked for John Doe")
+	event := app.NewPassageBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
 		fmt.Println("Erro ao publicar evento:", err)
 	}
