@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/mateusmacedo/go-bff/internal/application"
-	"github.com/mateusmacedo/go-bff/internal/domain"
-	"github.com/mateusmacedo/go-bff/internal/infrastructure"
+	"github.com/mateusmacedo/go-bff/internal/busticket/application"
+	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
+	"github.com/mateusmacedo/go-bff/internal/busticket/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	pkgInfra "github.com/mateusmacedo/go-bff/pkg/infrastructure"
 	zapAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/zaplogger/adapter"
@@ -30,12 +30,12 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := application.NewReservePassageHandler(repository, idGenerator, appLogger)
-	findHandler := application.NewFindPassageHandler(repository, appLogger)
+	reserveHandler := application.NewReserveBusTicketHandler(repository, idGenerator, appLogger)
+	findHandler := application.NewFindBusTicketHandler(repository, appLogger)
 
 	// Criação dos barramentos
-	commandBus := pkgInfra.NewSimpleCommandBus[pkgDomain.Command[application.ReservePassageData], application.ReservePassageData](appLogger)
-	queryBus := pkgInfra.NewSimpleQueryBus[pkgDomain.Query[application.FindPassageData], application.FindPassageData, domain.Passage](appLogger)
+	commandBus := pkgInfra.NewSimpleCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](appLogger)
+	queryBus := pkgInfra.NewSimpleQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, domain.BusTicket](appLogger)
 	eventBus := pkgInfra.NewSimpleEventBus[pkgDomain.Event[string], string](appLogger)
 
 	// Registro dos handlers nos barramentos
@@ -47,14 +47,14 @@ func main() {
 	defer cancel()
 
 	// Criando um comando de reserva de passagem
-	reserveData := application.ReservePassageData{
+	reserveData := application.ReserveBusTicketData{
 		PassengerName: "John Doe",
 		DepartureTime: time.Now().Add(24 * time.Hour),
 		SeatNumber:    12,
 		Origin:        "City A",
 		Destination:   "City B",
 	}
-	command := application.NewReservePassageCommand(reserveData)
+	command := application.NewReserveBusTicketCommand(reserveData)
 
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
@@ -80,7 +80,7 @@ func main() {
 	}
 
 	// Criando uma consulta para encontrar uma passagem
-	query := application.NewFindPassageQuery(application.FindPassageData{
+	query := application.NewFindBusTicketQuery(application.FindBusTicketData{
 		PassageID: passageID, // Use o ID gerado corretamente
 	})
 
@@ -100,7 +100,7 @@ func main() {
 	}
 
 	// Exemplo de publicação de um evento
-	event := application.NewPassageBookedEvent("Passage successfully booked for John Doe")
+	event := application.NewBusTicketBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
 		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
 			"event_name": event.EventName(),

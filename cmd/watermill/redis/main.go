@@ -7,9 +7,9 @@ import (
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
 	"github.com/google/uuid"
 
-	"github.com/mateusmacedo/go-bff/internal/application"
-	"github.com/mateusmacedo/go-bff/internal/domain"
-	"github.com/mateusmacedo/go-bff/internal/infrastructure"
+	"github.com/mateusmacedo/go-bff/internal/busticket/application"
+	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
+	"github.com/mateusmacedo/go-bff/internal/busticket/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	"github.com/mateusmacedo/go-bff/pkg/infrastructure/redis/adapter"
 	watermillLogAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/watermill/adapter"
@@ -65,12 +65,12 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := application.NewReservePassageHandler(repository, idGenerator, appLogger)
-	findHandler := application.NewFindPassageHandler(repository, appLogger)
+	reserveHandler := application.NewReserveBusTicketHandler(repository, idGenerator, appLogger)
+	findHandler := application.NewFindBusTicketHandler(repository, appLogger)
 
 	// Criação dos barramentos usando Redis
-	commandBus := adapter.NewRedisCommandBus[pkgDomain.Command[application.ReservePassageData], application.ReservePassageData](publisher, subscriber, appLogger)
-	queryBus := adapter.NewRedisQueryBus[pkgDomain.Query[application.FindPassageData], application.FindPassageData, domain.Passage](publisher, subscriber, appLogger)
+	commandBus := adapter.NewRedisCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](publisher, subscriber, appLogger)
+	queryBus := adapter.NewRedisQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, domain.BusTicket](publisher, subscriber, appLogger)
 	eventBus := adapter.NewRedisEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
 
 	// Registro dos handlers nos barramentos
@@ -78,7 +78,7 @@ func main() {
 	queryBus.RegisterHandler("FindPassage", findHandler)
 
 	// Criando um comando de reserva de passagem
-	reserveData := application.ReservePassageData{
+	reserveData := application.ReserveBusTicketData{
 		PassengerName: "John Doe",
 		DepartureTime: time.Now().Add(24 * time.Hour).Truncate(time.Second),
 		SeatNumber:    12,
@@ -87,7 +87,7 @@ func main() {
 	}
 
 	// Despachando o comando
-	command := application.NewReservePassageCommand(reserveData)
+	command := application.NewReserveBusTicketCommand(reserveData)
 	appLogger.Info(ctx, "Despachando o comando para reservar passagem...", map[string]interface{}{
 		"command_name": command.CommandName(),
 	})
@@ -114,7 +114,7 @@ func main() {
 	}
 
 	// Criando uma consulta para encontrar uma passagem
-	query := application.NewFindPassageQuery(application.FindPassageData{
+	query := application.NewFindBusTicketQuery(application.FindBusTicketData{
 		PassageID: passageID,
 	})
 
@@ -133,7 +133,7 @@ func main() {
 	})
 
 	// Exemplo de publicação de um evento
-	event := application.NewPassageBookedEvent("Passage successfully booked for John Doe")
+	event := application.NewBusTicketBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
 		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
 			"event_name": event.EventName(),

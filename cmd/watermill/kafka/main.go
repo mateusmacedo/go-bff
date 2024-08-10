@@ -8,9 +8,9 @@ import (
 	"github.com/ThreeDotsLabs/watermill-kafka/v2/pkg/kafka"
 	"github.com/google/uuid"
 
-	app "github.com/mateusmacedo/go-bff/internal/application"
-	"github.com/mateusmacedo/go-bff/internal/domain"
-	"github.com/mateusmacedo/go-bff/internal/infrastructure"
+	app "github.com/mateusmacedo/go-bff/internal/busticket/application"
+	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
+	"github.com/mateusmacedo/go-bff/internal/busticket/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	"github.com/mateusmacedo/go-bff/pkg/infrastructure/kafka/adapter"
 	watermillLogAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/watermill/adapter"
@@ -97,12 +97,12 @@ func main() {
 	}
 
 	// Criação dos handlers
-	reserveHandler := app.NewReservePassageHandler(repository, idGenerator, appLogger)
-	findHandler := app.NewFindPassageHandler(repository, appLogger)
+	reserveHandler := app.NewReserveBusTicketHandler(repository, idGenerator, appLogger)
+	findHandler := app.NewFindBusTicketHandler(repository, appLogger)
 
 	// Criação dos barramentos usando Kafka
-	commandBus := adapter.NewKafkaCommandBus[pkgDomain.Command[app.ReservePassageData], app.ReservePassageData](publisher, subscriber, appLogger)
-	queryBus := adapter.NewKafkaQueryBus[pkgDomain.Query[app.FindPassageData], app.FindPassageData, domain.Passage](publisher, subscriber, appLogger)
+	commandBus := adapter.NewKafkaCommandBus[pkgDomain.Command[app.ReserveBusTicketData], app.ReserveBusTicketData](publisher, subscriber, appLogger)
+	queryBus := adapter.NewKafkaQueryBus[pkgDomain.Query[app.FindBusTicketData], app.FindBusTicketData, domain.BusTicket](publisher, subscriber, appLogger)
 	eventBus := adapter.NewKafkaEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
 
 	// Registro dos handlers nos barramentos
@@ -110,14 +110,14 @@ func main() {
 	queryBus.RegisterHandler("FindPassage", findHandler)
 
 	// Criando um comando de reserva de passagem
-	reserveData := app.ReservePassageData{
+	reserveData := app.ReserveBusTicketData{
 		PassengerName: "John Doe",
 		DepartureTime: time.Now().Add(24 * time.Hour).Truncate(time.Second),
 		SeatNumber:    12,
 		Origin:        "City A",
 		Destination:   "City B",
 	}
-	command := app.NewReservePassageCommand(reserveData)
+	command := app.NewReserveBusTicketCommand(reserveData)
 
 	appLogger.Info(ctx, "Despachando o comando para reservar passagem...", map[string]interface{}{
 		"command_name": command.CommandName(),
@@ -146,7 +146,7 @@ func main() {
 	}
 
 	// Criando uma consulta para encontrar uma passagem
-	query := app.NewFindPassageQuery(app.FindPassageData{
+	query := app.NewFindBusTicketQuery(app.FindBusTicketData{
 		PassageID: passageID,
 	})
 
@@ -170,7 +170,7 @@ func main() {
 	}
 
 	// Exemplo de publicação de um evento
-	event := app.NewPassageBookedEvent("Passage successfully booked for John Doe")
+	event := app.NewBusTicketBookedEvent("Passage successfully booked for John Doe")
 	if err := eventBus.Publish(ctx, event); err != nil {
 		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
 			"event_name": event.EventName(),
