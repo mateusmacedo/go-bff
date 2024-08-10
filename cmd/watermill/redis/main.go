@@ -2,14 +2,15 @@ package main
 
 import (
 	"context"
-	"time"
+	"net/http"
 
 	"github.com/ThreeDotsLabs/watermill-redisstream/pkg/redisstream"
+	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/mateusmacedo/go-bff/internal/busticket"
 	"github.com/mateusmacedo/go-bff/internal/busticket/application"
 	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
-	"github.com/mateusmacedo/go-bff/internal/busticket/infrastructure"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 	"github.com/mateusmacedo/go-bff/pkg/infrastructure/redis/adapter"
 	watermillLogAdapter "github.com/mateusmacedo/go-bff/pkg/infrastructure/watermill/adapter"
@@ -56,96 +57,33 @@ func main() {
 	}
 	defer subscriber.Close()
 
-	// Configuração do repositório
-	repository := infrastructure.NewInMemoryPassageRepository(appLogger)
+	// Criação dos barramentos usando Redis
+	commandBus := adapter.NewRedisCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](publisher, subscriber, appLogger)
+	queryBus := adapter.NewRedisQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket](publisher, subscriber, appLogger)
+	eventBus := adapter.NewRedisEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
 
 	// Gerador de ID
 	idGenerator := func() string {
 		return uuid.New().String()
 	}
 
-	// Criação dos handlers
-	reserveHandler := application.NewReserveBusTicketHandler(repository, idGenerator, appLogger)
-	findHandler := application.NewFindBusTicketHandler(repository, appLogger)
+	// Criar um contexto de aplicação de ticket de ônibus (BusTicket) utilizando o slice
+	busTicketSlice := busticket.NewBusTicketSlice(commandBus, queryBus, idGenerator, appLogger, eventBus)
 
-	// Criação dos barramentos usando Redis
-	commandBus := adapter.NewRedisCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](publisher, subscriber, appLogger)
-	queryBus := adapter.NewRedisQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, domain.BusTicket](publisher, subscriber, appLogger)
-	eventBus := adapter.NewRedisEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
+	// Configuração do roteador HTTP
+	router := chi.NewRouter()
 
-	// Registro dos handlers nos barramentos
-	commandBus.RegisterHandler("ReservePassage", reserveHandler)
-	queryBus.RegisterHandler("FindPassage", findHandler)
+	// Registro das rotas HTTP
+	busTicketSlice.RegisterRoutes(router)
 
-	// Criando um comando de reserva de passagem
-	reserveData := application.ReserveBusTicketData{
-		PassengerName: "John Doe",
-		DepartureTime: time.Now().Add(24 * time.Hour).Truncate(time.Second),
-		SeatNumber:    12,
-		Origin:        "City A",
-		Destination:   "City B",
-	}
-
-	// Despachando o comando
-	command := application.NewReserveBusTicketCommand(reserveData)
-	appLogger.Info(ctx, "Despachando o comando para reservar passagem...", map[string]interface{}{
-		"command_name": command.CommandName(),
+	// Iniciando o servidor HTTP
+	serverAddress := ":8080"
+	appLogger.Info(context.Background(), "Starting HTTP server", map[string]interface{}{
+		"address": serverAddress,
 	})
-	if err := commandBus.Dispatch(ctx, command); err != nil {
-		appLogger.Error(ctx, "Erro ao reservar passagem", map[string]interface{}{
-			"command_name": command.CommandName(),
-			"payload":      command.Payload(),
-			"error":        err,
-		})
-		return
-	}
-	appLogger.Info(ctx, "Comando de reserva de passagem despachado com sucesso", nil)
-
-	// Espera breve para permitir o processamento das mensagens
-	time.Sleep(1 * time.Second)
-
-	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
-	var passageID string
-	for id, passage := range repository.GetData() {
-		if passage.PassengerName == reserveData.PassengerName && passage.DepartureTime.Equal(reserveData.DepartureTime) {
-			passageID = id
-			break
-		}
-	}
-
-	// Criando uma consulta para encontrar uma passagem
-	query := application.NewFindBusTicketQuery(application.FindBusTicketData{
-		PassageID: passageID,
-	})
-
-	// Despachando a consulta
-	passage, err := queryBus.Dispatch(ctx, query)
-	if err != nil {
-		appLogger.Error(ctx, "Erro ao despachar consulta para encontrar passagem", map[string]interface{}{
-			"query_name": query,
-			"payload":    query.Payload(),
-			"error":      err,
-		})
-		return
-	}
-	appLogger.Info(ctx, "Consulta para encontrar passagem despachada com sucesso", map[string]interface{}{
-		"passage": passage,
-	})
-
-	// Exemplo de publicação de um evento
-	event := application.NewBusTicketBookedEvent("Passage successfully booked for John Doe")
-	if err := eventBus.Publish(ctx, event); err != nil {
-		appLogger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
-			"event_name": event.EventName(),
-			"payload":    event.Payload(),
-			"error":      err,
-		})
-		return
-	} else {
-		appLogger.Info(ctx, "Evento publicado com sucesso", map[string]interface{}{
-			"event_name": event.EventName(),
-			"payload":    event.Payload(),
+	if err := http.ListenAndServe(serverAddress, router); err != nil {
+		appLogger.Error(context.Background(), "Failed to start HTTP server", map[string]interface{}{
+			"error": err,
 		})
 	}
-
 }
