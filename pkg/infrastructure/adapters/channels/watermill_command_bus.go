@@ -1,5 +1,4 @@
-// internal/adapters/watermill_command_bus.go
-package adapters
+package channels
 
 import (
 	"context"
