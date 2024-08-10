@@ -12,11 +12,13 @@ import (
 type simpleCommandBus[C domain.Command[D], D any] struct {
 	handlers map[string]application.CommandHandler[C, D]
 	mu       sync.RWMutex
+	logger   application.AppLogger
 }
 
-func NewSimpleCommandBus[C domain.Command[D], D any]() application.CommandBus[C, D] {
+func NewSimpleCommandBus[C domain.Command[D], D any](logger application.AppLogger) application.CommandBus[C, D] {
 	return &simpleCommandBus[C, D]{
 		handlers: make(map[string]application.CommandHandler[C, D]),
+		logger:   logger,
 	}
 }
 
@@ -32,8 +34,14 @@ func (bus *simpleCommandBus[C, D]) Dispatch(ctx context.Context, command C) erro
 	bus.mu.RUnlock()
 
 	if !found {
+		bus.logger.Error(ctx, "no handler registered for command", map[string]interface{}{
+			"command_name": command.CommandName(),
+		})
 		return errors.New("no handler registered for command")
 	}
 
+	bus.logger.Info(ctx, "dispatching command", map[string]interface{}{
+		"command_name": command.CommandName(),
+	})
 	return handler.Handle(ctx, command)
 }
