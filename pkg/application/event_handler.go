@@ -13,5 +13,6 @@ type EventHandler[E domain.Event[T], T any] interface {
 
 // EventBus define a interface para o barramento de eventos.
 type EventBus[E domain.Event[D], D any] interface {
+	RegisterHandler(eventName string, handler EventHandler[E, D])
 	Publish(ctx context.Context, event E) error
 }
