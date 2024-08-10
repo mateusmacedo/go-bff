@@ -30,6 +30,7 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+
   kafdrop:
     platform: linux/amd64
     image: obsidiandynamics/kafdrop
@@ -40,5 +41,18 @@ services:
       - KAFKA_BROKERCONNECT=broker:29092
       - JVM_OPTS=-Xms32M -Xmx64M
 
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
 volumes:
   kafka_data:
+  postgres_data:
