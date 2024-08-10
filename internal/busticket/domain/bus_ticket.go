@@ -6,12 +6,12 @@ import (
 )
 
 type BusTicket struct {
-	ID            string
-	PassengerName string
-	DepartureTime time.Time
-	SeatNumber    int
-	Origin        string
-	Destination   string
+	ID            string    `json:"id" gorm:"primaryKey"`
+	PassengerName string    `json:"passengerName" gorm:"index"`
+	DepartureTime time.Time `json:"departureTime"`
+	SeatNumber    int       `json:"seatNumber"`
+	Origin        string    `json:"origin"`
+	Destination   string    `json:"destination"`
 }
 
 type BusTicketRepository interface {

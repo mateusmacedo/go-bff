@@ -20,11 +20,10 @@ func NewBusTicketSlice(
 	idGenerator pkgDomain.IDGenerator[string],
 	logger pkgApp.AppLogger,
 	eventBus pkgApp.EventBus[pkgDomain.Event[string], string],
+	repository domain.BusTicketRepository,
 ) *BusTicketSlice {
-	repo := infrastructure.NewInMemoryBusTicketRepository(logger)
-
-	commandHandler := application.NewReserveBusTicketHandler(eventBus, repo, idGenerator, logger)
-	queryHandler := application.NewFindBusTicketHandler(repo, logger)
+	commandHandler := application.NewReserveBusTicketHandler(eventBus, repository, idGenerator, logger)
+	queryHandler := application.NewFindBusTicketHandler(repository, logger)
 	eventHandler := application.NewBusTicketBookedEventHandler(logger)
 
 	commandBus.RegisterHandler("ReserveBusTicket", commandHandler)
