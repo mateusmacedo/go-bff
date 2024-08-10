@@ -3,14 +3,15 @@ module github.com/mateusmacedo/go-bff
 go 1.22.5
 
 require (
+	github.com/Shopify/sarama v1.38.0
 	github.com/ThreeDotsLabs/watermill v1.3.5
+	github.com/ThreeDotsLabs/watermill-kafka/v2 v2.5.0
 	github.com/ThreeDotsLabs/watermill-redisstream v1.3.0
 	github.com/google/uuid v1.6.0
+	go.uber.org/zap v1.27.0
 )
 
 require (
-	github.com/Shopify/sarama v1.38.0 // indirect
-	github.com/ThreeDotsLabs/watermill-kafka/v2 v2.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/eapache/go-resiliency v1.3.0 // indirect
 	github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21 // indirect
@@ -32,6 +33,7 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/github.com/Shopify/sarama/otelsarama v0.31.0 // indirect
 	go.opentelemetry.io/otel v1.6.1 // indirect
 	go.opentelemetry.io/otel/trace v1.6.1 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.26.0 // indirect
 )
 
@@ -49,5 +51,4 @@ require (
 	golang.org/x/net v0.28.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 )
