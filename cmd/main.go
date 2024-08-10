@@ -29,7 +29,7 @@ func main() {
 
 	// Criação dos barramentos
 	commandBus := pkgInfra.NewSimpleCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](appLogger)
-	queryBus := pkgInfra.NewSimpleQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, domain.BusTicket](appLogger)
+	queryBus := pkgInfra.NewSimpleQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket](appLogger)
 	eventBus := pkgInfra.NewSimpleEventBus[pkgDomain.Event[string], string](appLogger)
 
 	// Criar um contexto de aplicação de ticket de ônibus (BusTicket) utilizando o slice

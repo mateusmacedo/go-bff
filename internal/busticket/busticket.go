@@ -18,7 +18,7 @@ type BusTicketSlice struct {
 // NewBusTicketSlice cria uma nova instância de BusTicketSlice.
 func NewBusTicketSlice(
 	commandBus pkgApp.CommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData],
-	queryBus pkgApp.QueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, domain.BusTicket],
+	queryBus pkgApp.QueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket],
 	idGenerator pkgDomain.IDGenerator[string],
 	logger pkgApp.AppLogger,
 	eventBus pkgApp.EventBus[pkgDomain.Event[string], string],

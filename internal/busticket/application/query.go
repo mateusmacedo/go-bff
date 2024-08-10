@@ -6,7 +6,7 @@ import (
 
 // FindBusTicketData contém os dados necessários para encontrar uma passagem.
 type FindBusTicketData struct {
-	BusTicketID string
+	PassengerName string
 }
 
 // findBusTicketQuery é uma implementação privada de uma consulta para encontrar uma passagem.

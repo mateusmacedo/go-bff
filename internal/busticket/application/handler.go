@@ -73,23 +73,23 @@ type findBusTicketHandler struct {
 	logger     pkgApp.AppLogger
 }
 
-func (h *findBusTicketHandler) Handle(ctx context.Context, query pkgDomain.Query[FindBusTicketData]) (domain.BusTicket, error) {
+func (h *findBusTicketHandler) Handle(ctx context.Context, query pkgDomain.Query[FindBusTicketData]) ([]domain.BusTicket, error) {
 	select {
 	case <-ctx.Done():
 		h.logger.Info(ctx, "Contexto cancelado", nil)
-		return domain.BusTicket{}, ctx.Err()
+		return nil, ctx.Err()
 	default:
 		data := query.Payload()
-		busTicket, err := h.repository.FindByID(ctx, data.BusTicketID)
+		busTicket, err := h.repository.FindByPassengerName(ctx, data.PassengerName)
 		h.logger.Info(ctx, "Encontrando passagem", map[string]interface{}{
-			"bus_ticket_id": data.BusTicketID,
+			"bus_ticket_id": data.PassengerName,
 		})
 		if err != nil {
 			h.logger.Error(ctx, "Erro ao encontrar passagem", map[string]interface{}{
-				"bus_ticket_id": data.BusTicketID,
+				"bus_ticket_id": data.PassengerName,
 				"error":         err,
 			})
-			return domain.BusTicket{}, err
+			return nil, err
 		}
 		h.logger.Info(ctx, "BusTicketm encontrada com sucesso", map[string]interface{}{
 			"bus_ticket": busTicket,
@@ -99,7 +99,7 @@ func (h *findBusTicketHandler) Handle(ctx context.Context, query pkgDomain.Query
 }
 
 // NewFindBusTicketHandler cria um novo handler para a consulta de encontrar passagem.
-func NewFindBusTicketHandler(repo domain.BusTicketRepository, logger pkgApp.AppLogger) pkgApp.QueryHandler[pkgDomain.Query[FindBusTicketData], FindBusTicketData, domain.BusTicket] {
+func NewFindBusTicketHandler(repo domain.BusTicketRepository, logger pkgApp.AppLogger) pkgApp.QueryHandler[pkgDomain.Query[FindBusTicketData], FindBusTicketData, []domain.BusTicket] {
 	return &findBusTicketHandler{
 		repository: repo,
 		logger:     logger,

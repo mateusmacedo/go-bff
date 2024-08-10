@@ -43,23 +43,41 @@ func (r *InMemoryBusTicketRepository) Save(ctx context.Context, busTicket domain
 	return nil
 }
 
-func (r *InMemoryBusTicketRepository) FindByID(ctx context.Context, id string) (domain.BusTicket, error) {
+// func (r *InMemoryBusTicketRepository) FindByID(ctx context.Context, id string) (domain.BusTicket, error) {
+// 	r.mu.RLock()
+// 	defer r.mu.RUnlock()
+
+// 	busTicket, exists := r.data[id]
+// 	if !exists {
+// 		r.logger.Error(ctx, "busTicket not found", map[string]interface{}{
+// 			"id": id,
+// 		})
+// 		return domain.BusTicket{}, errors.New("busTicket not found")
+// 	}
+
+// 	r.logger.Info(ctx, "busTicket found", map[string]interface{}{
+// 		"busTicket": busTicket,
+// 	})
+
+// 	return busTicket, nil
+// }
+
+func (r *InMemoryBusTicketRepository) FindByPassengerName(ctx context.Context, passengerName string) ([]domain.BusTicket, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	busTicket, exists := r.data[id]
-	if !exists {
-		r.logger.Error(ctx, "busTicket not found", map[string]interface{}{
-			"id": id,
-		})
-		return domain.BusTicket{}, errors.New("busTicket not found")
+	var busTickets []domain.BusTicket
+	for _, busTicket := range r.data {
+		if busTicket.PassengerName == passengerName {
+			busTickets = append(busTickets, busTicket)
+		}
 	}
 
-	r.logger.Info(ctx, "busTicket found", map[string]interface{}{
-		"busTicket": busTicket,
+	r.logger.Info(ctx, "busTickets found", map[string]interface{}{
+		"busTickets": busTickets,
 	})
 
-	return busTicket, nil
+	return busTickets, nil
 }
 
 func (r *InMemoryBusTicketRepository) Update(ctx context.Context, busTicket domain.BusTicket) error {
