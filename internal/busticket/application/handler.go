@@ -9,6 +9,7 @@ import (
 )
 
 type reserveBusTicketHandler struct {
+	eventBus    pkgApp.EventBus[pkgDomain.Event[string], string]
 	repository  domain.BusTicketRepository
 	idGenerator pkgDomain.IDGenerator[string]
 	logger      pkgApp.AppLogger
@@ -21,7 +22,7 @@ func (h *reserveBusTicketHandler) Handle(ctx context.Context, command pkgDomain.
 		return ctx.Err()
 	default:
 		data := command.Payload()
-		passage := domain.BusTicket{
+		busTicket := domain.BusTicket{
 			ID:            h.idGenerator(),
 			PassengerName: data.PassengerName,
 			DepartureTime: data.DepartureTime,
@@ -31,65 +32,99 @@ func (h *reserveBusTicketHandler) Handle(ctx context.Context, command pkgDomain.
 		}
 
 		h.logger.Info(ctx, "Salvando passagem", map[string]interface{}{
-			"passage": passage,
+			"id": busTicket.ID,
 		})
-		if err := h.repository.Save(ctx, passage); err != nil {
+		if err := h.repository.Save(ctx, busTicket); err != nil {
 			h.logger.Error(ctx, "Erro ao salvar passagem", map[string]interface{}{
-				"passage": passage,
-				"error":   err,
+				"bus_ticket": busTicket,
+				"error":      err,
 			})
 			return err
 		}
 
-		h.logger.Info(ctx, "Passagem salva com sucesso", map[string]interface{}{
-			"passage": passage,
+		event := NewBusTicketBookedEvent("BusTicket successfully booked for " + data.PassengerName)
+		if err := h.eventBus.Publish(ctx, event); err != nil {
+			h.logger.Error(ctx, "Erro ao publicar evento", map[string]interface{}{
+				"event_name": event.EventName(),
+				"payload":    event.Payload(),
+				"error":      err,
+			})
+			return err
+		}
+
+		h.logger.Info(ctx, "BusTicketm salva com sucesso", map[string]interface{}{
+			"bus_ticket": busTicket,
 		})
 		return nil
 	}
 }
 
-func NewReserveBusTicketHandler(repo domain.BusTicketRepository, idGenerator pkgDomain.IDGenerator[string], logger pkgApp.AppLogger) pkgApp.CommandHandler[pkgDomain.Command[ReserveBusTicketData], ReserveBusTicketData] {
+func NewReserveBusTicketHandler(eventBus pkgApp.EventBus[pkgDomain.Event[string], string], repo domain.BusTicketRepository, idGenerator pkgDomain.IDGenerator[string], logger pkgApp.AppLogger) pkgApp.CommandHandler[pkgDomain.Command[ReserveBusTicketData], ReserveBusTicketData] {
 	return &reserveBusTicketHandler{
+		eventBus:    eventBus,
 		repository:  repo,
 		idGenerator: idGenerator,
 		logger:      logger,
 	}
 }
 
-type findPassageHandler struct {
+type findBusTicketHandler struct {
 	repository domain.BusTicketRepository
 	logger     pkgApp.AppLogger
 }
 
-func (h *findPassageHandler) Handle(ctx context.Context, query pkgDomain.Query[FindBusTicketData]) (domain.BusTicket, error) {
+func (h *findBusTicketHandler) Handle(ctx context.Context, query pkgDomain.Query[FindBusTicketData]) (domain.BusTicket, error) {
 	select {
 	case <-ctx.Done():
 		h.logger.Info(ctx, "Contexto cancelado", nil)
 		return domain.BusTicket{}, ctx.Err()
 	default:
 		data := query.Payload()
-		passage, err := h.repository.FindByID(ctx, data.PassageID)
+		busTicket, err := h.repository.FindByID(ctx, data.BusTicketID)
 		h.logger.Info(ctx, "Encontrando passagem", map[string]interface{}{
-			"passage_id": data.PassageID,
+			"bus_ticket_id": data.BusTicketID,
 		})
 		if err != nil {
 			h.logger.Error(ctx, "Erro ao encontrar passagem", map[string]interface{}{
-				"passage_id": data.PassageID,
-				"error":      err,
+				"bus_ticket_id": data.BusTicketID,
+				"error":         err,
 			})
 			return domain.BusTicket{}, err
 		}
-		h.logger.Info(ctx, "Passagem encontrada com sucesso", map[string]interface{}{
-			"passage": passage,
+		h.logger.Info(ctx, "BusTicketm encontrada com sucesso", map[string]interface{}{
+			"bus_ticket": busTicket,
 		})
-		return passage, nil
+		return busTicket, nil
 	}
 }
 
 // NewFindBusTicketHandler cria um novo handler para a consulta de encontrar passagem.
 func NewFindBusTicketHandler(repo domain.BusTicketRepository, logger pkgApp.AppLogger) pkgApp.QueryHandler[pkgDomain.Query[FindBusTicketData], FindBusTicketData, domain.BusTicket] {
-	return &findPassageHandler{
+	return &findBusTicketHandler{
 		repository: repo,
 		logger:     logger,
+	}
+}
+
+type busTicketBookedEventHandler struct {
+	logger pkgApp.AppLogger
+}
+
+func (h *busTicketBookedEventHandler) Handle(ctx context.Context, event pkgDomain.Event[string]) error {
+	select {
+	case <-ctx.Done():
+		h.logger.Info(ctx, "Contexto cancelado", nil)
+		return ctx.Err()
+	default:
+		h.logger.Info(ctx, "Evento de passagem reservada recebido", map[string]interface{}{
+			"payload": event.Payload(),
+		})
+		return nil
+	}
+}
+
+func NewBusTicketBookedEventHandler(logger pkgApp.AppLogger) pkgApp.EventHandler[pkgDomain.Event[string], string] {
+	return &busTicketBookedEventHandler{
+		logger: logger,
 	}
 }

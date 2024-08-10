@@ -4,7 +4,7 @@ import (
 	"github.com/mateusmacedo/go-bff/pkg/domain"
 )
 
-// PassageBookedEvent representa um evento de passagem reservada.
+// BusTicketBookedEvent representa um evento de passagem reservada.
 type busTicketBookedEvent struct {
 	data string
 }

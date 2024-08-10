@@ -17,28 +17,28 @@ type InMemoryBusTicketRepository struct {
 	logger pkgApp.AppLogger
 }
 
-func NewInMemoryPassageRepository(logger pkgApp.AppLogger) *InMemoryBusTicketRepository {
+func NewInMemoryBusTicketRepository(logger pkgApp.AppLogger) *InMemoryBusTicketRepository {
 	return &InMemoryBusTicketRepository{
 		data:   make(map[string]domain.BusTicket),
 		logger: logger,
 	}
 }
 
-func (r *InMemoryBusTicketRepository) Save(ctx context.Context, passage domain.BusTicket) error {
+func (r *InMemoryBusTicketRepository) Save(ctx context.Context, busTicket domain.BusTicket) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.data[passage.ID]; exists {
-		r.logger.Error(ctx, "passage already exists", map[string]interface{}{
-			"passage": passage,
+	if _, exists := r.data[busTicket.ID]; exists {
+		r.logger.Error(ctx, "busTicket already exists", map[string]interface{}{
+			"busTicket": busTicket,
 		})
-		return errors.New("passage already exists")
+		return errors.New("busTicket already exists")
 	}
 
-	r.logger.Info(ctx, "passage saved", map[string]interface{}{
-		"passage": passage,
+	r.logger.Info(ctx, "busTicket saved", map[string]interface{}{
+		"busTicket": busTicket,
 	})
-	r.data[passage.ID] = passage
+	r.data[busTicket.ID] = busTicket
 
 	return nil
 }
@@ -47,36 +47,36 @@ func (r *InMemoryBusTicketRepository) FindByID(ctx context.Context, id string) (
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	passage, exists := r.data[id]
+	busTicket, exists := r.data[id]
 	if !exists {
-		r.logger.Error(ctx, "passage not found", map[string]interface{}{
+		r.logger.Error(ctx, "busTicket not found", map[string]interface{}{
 			"id": id,
 		})
-		return domain.BusTicket{}, errors.New("passage not found")
+		return domain.BusTicket{}, errors.New("busTicket not found")
 	}
 
-	r.logger.Info(ctx, "passage found", map[string]interface{}{
-		"passage": passage,
+	r.logger.Info(ctx, "busTicket found", map[string]interface{}{
+		"busTicket": busTicket,
 	})
 
-	return passage, nil
+	return busTicket, nil
 }
 
-func (r *InMemoryBusTicketRepository) Update(ctx context.Context, passage domain.BusTicket) error {
+func (r *InMemoryBusTicketRepository) Update(ctx context.Context, busTicket domain.BusTicket) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if _, exists := r.data[passage.ID]; !exists {
-		r.logger.Error(ctx, "passage not found", map[string]interface{}{
-			"passage": passage,
+	if _, exists := r.data[busTicket.ID]; !exists {
+		r.logger.Error(ctx, "busTicket not found", map[string]interface{}{
+			"busTicket": busTicket,
 		})
-		return errors.New("passage not found")
+		return errors.New("busTicket not found")
 	}
 
-	r.logger.Info(ctx, "passage updated", map[string]interface{}{
-		"passage": passage,
+	r.logger.Info(ctx, "busTicket updated", map[string]interface{}{
+		"busTicket": busTicket,
 	})
-	r.data[passage.ID] = passage
+	r.data[busTicket.ID] = busTicket
 
 	return nil
 }

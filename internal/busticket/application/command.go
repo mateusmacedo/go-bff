@@ -21,7 +21,7 @@ type reserveBusTicketCommand struct {
 }
 
 func (c reserveBusTicketCommand) CommandName() string {
-	return "ReservePassage"
+	return "ReserveBusTicket"
 }
 
 func (c reserveBusTicketCommand) Payload() ReserveBusTicketData {
