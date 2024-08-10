@@ -40,3 +40,8 @@ func (r *InMemoryPassageRepository) Update(passage domain.Passage) error {
 	r.data[passage.ID] = passage
 	return nil
 }
+
+// Método auxiliar para obter todos os dados (apenas para depuração).
+func (r *InMemoryPassageRepository) GetData() map[string]domain.Passage {
+	return r.data
+}

@@ -41,27 +41,40 @@ func main() {
 	defer cancel()
 
 	// Criando um comando de reserva de passagem
-	command := application.NewReservePassageCommand(application.ReservePassageData{
+	reserveData := application.ReservePassageData{
 		PassengerName: "John Doe",
 		DepartureTime: time.Now().Add(24 * time.Hour),
 		SeatNumber:    12,
 		Origin:        "City A",
 		Destination:   "City B",
-	})
+	}
+	command := application.NewReservePassageCommand(reserveData)
 
 	// Despachando o comando
 	if err := commandBus.Dispatch(ctx, command); err != nil {
 		fmt.Println("Erro ao reservar passagem:", err)
-	} else {
-		fmt.Println("Passagem reservada com sucesso!")
+		return
+	}
+	fmt.Println("Passagem reservada com sucesso!")
+
+	// Obtendo o ID da passagem diretamente do repositório para evitar inconsistências
+	var passageID string
+	for id, passage := range repository.GetData() { // Utilize GetData() se disponível
+		if passage.PassengerName == reserveData.PassengerName && passage.DepartureTime.Equal(reserveData.DepartureTime) {
+			passageID = id
+			break
+		}
 	}
 
-	// Obtendo o ID da passagem a partir do comando gerado
-	passageID := command.Payload().PassengerName
+	// Verifique se o ID foi encontrado
+	if passageID == "" {
+		fmt.Println("Erro: ID da passagem não encontrado após a reserva.")
+		return
+	}
 
 	// Criando uma consulta para encontrar uma passagem
 	query := application.NewFindPassageQuery(application.FindPassageData{
-		PassageID: passageID, // Supondo que o ID da passagem é o nome do passageiro
+		PassageID: passageID, // Use o ID gerado corretamente
 	})
 
 	// Despachando a consulta
