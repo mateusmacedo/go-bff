@@ -14,13 +14,11 @@ import (
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 )
 
-// BusTicketHTTPHandler manipula as rotas HTTP para comandos e consultas de passagens.
 type BusTicketHTTPHandler struct {
 	commandBus pkgApp.CommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData]
 	queryBus   pkgApp.QueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket]
 }
 
-// NewBusTicketHTTPHandler cria uma nova instância de BusTicketHTTPHandler.
 func NewBusTicketHTTPHandler(
 	commandBus pkgApp.CommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData],
 	queryBus pkgApp.QueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket],
@@ -31,7 +29,6 @@ func NewBusTicketHTTPHandler(
 	}
 }
 
-// HandleReserveBusTicket manipula o comando de reserva de passagem.
 func (h *BusTicketHTTPHandler) HandleReserveBusTicket(w http.ResponseWriter, r *http.Request) {
 	var cmd application.ReserveBusTicketData
 	if err := json.NewDecoder(r.Body).Decode(&cmd); err != nil {
@@ -41,7 +38,6 @@ func (h *BusTicketHTTPHandler) HandleReserveBusTicket(w http.ResponseWriter, r *
 
 	command := application.NewReserveBusTicketCommand(cmd)
 
-	// Criar um contexto com timeout
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -58,7 +54,6 @@ func (h *BusTicketHTTPHandler) HandleReserveBusTicket(w http.ResponseWriter, r *
 	}
 }
 
-// HandleFindBusTicket manipula a consulta para encontrar uma passagem.
 func (h *BusTicketHTTPHandler) HandleFindBusTicket(w http.ResponseWriter, r *http.Request) {
 	busTicketID := chi.URLParam(r, "busTicketID")
 	findBusTicketData := application.FindBusTicketData{
@@ -66,7 +61,6 @@ func (h *BusTicketHTTPHandler) HandleFindBusTicket(w http.ResponseWriter, r *htt
 	}
 	query := application.NewFindBusTicketQuery(findBusTicketData)
 
-	// Criar um contexto com timeout
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
@@ -83,7 +77,6 @@ func (h *BusTicketHTTPHandler) HandleFindBusTicket(w http.ResponseWriter, r *htt
 	}
 }
 
-// RegisterRoutes registra as rotas HTTP para o manipulador de passagens.
 func (h *BusTicketHTTPHandler) RegisterRoutes(router chi.Router) {
 	router.Post("/bustickets", h.HandleReserveBusTicket)
 	router.Get("/bustickets/{busTicketID}", h.HandleFindBusTicket)

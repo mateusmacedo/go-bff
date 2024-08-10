@@ -18,20 +18,17 @@ import (
 )
 
 func main() {
-	// Criação de um novo logger
+
 	appLogger, err := zapAdapter.NewZapAppLogger()
 	if err != nil {
 		panic(err)
 	}
 
-	// Configuração do adaptador de logger
 	logger := watermillLogAdapter.NewWatermillLoggerAdapter(appLogger)
 
-	// Configuração do Redis
 	redisClient := adapter.NewRedisClient()
 	defer redisClient.Close()
 
-	// Configurar o contexto com cancelamento
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -42,6 +39,7 @@ func main() {
 		appLogger.Error(ctx, "Erro ao criar publisher", map[string]interface{}{
 			"error": err,
 		})
+		return
 	}
 	defer publisher.Close()
 
@@ -54,29 +52,24 @@ func main() {
 		appLogger.Error(ctx, "Erro ao criar subscriber", map[string]interface{}{
 			"error": err,
 		})
+		return
 	}
 	defer subscriber.Close()
 
-	// Criação dos barramentos usando Redis
 	commandBus := adapter.NewRedisCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](publisher, subscriber, appLogger)
 	queryBus := adapter.NewRedisQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket](publisher, subscriber, appLogger)
 	eventBus := adapter.NewRedisEventBus[pkgDomain.Event[string], string](publisher, subscriber, appLogger)
 
-	// Gerador de ID
 	idGenerator := func() string {
 		return uuid.New().String()
 	}
 
-	// Criar um contexto de aplicação de ticket de ônibus (BusTicket) utilizando o slice
 	busTicketSlice := busticket.NewBusTicketSlice(commandBus, queryBus, idGenerator, appLogger, eventBus)
 
-	// Configuração do roteador HTTP
 	router := chi.NewRouter()
 
-	// Registro das rotas HTTP
 	busTicketSlice.RegisterRoutes(router)
 
-	// Iniciando o servidor HTTP
 	serverAddress := ":8080"
 	appLogger.Info(context.Background(), "Starting HTTP server", map[string]interface{}{
 		"address": serverAddress,

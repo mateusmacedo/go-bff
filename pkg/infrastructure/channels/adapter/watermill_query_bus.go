@@ -43,7 +43,6 @@ func (bus *WatermillQueryBus[Q, D, R]) RegisterHandler(queryName string, handler
 				"query_name": queryName,
 				"error":      err,
 			})
-			// Handle error according to your needs
 		}
 
 		for msg := range messages {
@@ -57,13 +56,11 @@ func (bus *WatermillQueryBus[Q, D, R]) RegisterHandler(queryName string, handler
 					return
 				}
 
-				// Implement Query interface dynamically
 				query := &dynamicQuery[D]{
 					queryName: queryName,
 					payload:   payload,
 				}
 
-				// Assert the query as type Q
 				if typedQuery, ok := interface{}(query).(Q); ok {
 					result, err := handler.Handle(context.Background(), typedQuery)
 					if err != nil {

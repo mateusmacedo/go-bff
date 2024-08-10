@@ -43,7 +43,7 @@ func (bus *WatermillCommandBus[C, T]) RegisterHandler(commandName string, handle
 				"command_name": commandName,
 				"error":        err,
 			})
-			panic(err) // Handle error according to your needs
+			panic(err)
 		}
 
 		for msg := range messages {
@@ -57,13 +57,11 @@ func (bus *WatermillCommandBus[C, T]) RegisterHandler(commandName string, handle
 					return
 				}
 
-				// Implement Command interface dynamically
 				command := &dynamicCommand[T]{
 					commandName: commandName,
 					payload:     payload,
 				}
 
-				// Assert the command as type C
 				if typedCommand, ok := interface{}(command).(C); ok {
 					if err := handler.Handle(ctx, typedCommand); err != nil {
 						bus.logger.Error(ctx, "error handling command", map[string]interface{}{

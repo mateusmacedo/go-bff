@@ -1,4 +1,3 @@
-// internal/adapters/redis_query_bus.go
 package adapter
 
 import (

@@ -8,9 +8,9 @@ import (
 
 func NewRedisClient() redis.UniversalClient {
 	return redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // Endereço do Redis
-		Password: "",               // Senha, se necessário
-		DB:       0,                // Número do banco de dados
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
 	})
 }
 

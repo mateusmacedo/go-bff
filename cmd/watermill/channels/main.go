@@ -18,38 +18,30 @@ import (
 )
 
 func main() {
-	// Criação de um novo logger
+
 	appLogger, err := zapAdapter.NewZapAppLogger()
 	if err != nil {
 		panic(err)
 	}
 
-	// Configuração do adaptador de logger
 	logger := watermillLogAdapter.NewWatermillLoggerAdapter(appLogger)
 
-	// Configuração do publisher e subscriber em memória
 	pubSub := gochannel.NewGoChannel(gochannel.Config{}, logger)
 
-	// Criação dos barramentos usando Watermill
 	commandBus := adapter.NewWatermillCommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData](pubSub, pubSub, appLogger)
 	queryBus := adapter.NewWatermillQueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket](pubSub, pubSub, appLogger)
 	eventBus := adapter.NewWatermillEventBus[pkgDomain.Event[string], string](pubSub, appLogger)
 
-	// Gerador de ID
 	idGenerator := func() string {
 		return uuid.New().String()
 	}
 
-	// Criar um contexto de aplicação de ticket de ônibus (BusTicket) utilizando o slice
 	busTicketSlice := busticket.NewBusTicketSlice(commandBus, queryBus, idGenerator, appLogger, eventBus)
 
-	// Configuração do roteador HTTP
 	router := chi.NewRouter()
 
-	// Registro das rotas HTTP
 	busTicketSlice.RegisterRoutes(router)
 
-	// Iniciando o servidor HTTP
 	serverAddress := ":8080"
 	appLogger.Info(context.Background(), "Starting HTTP server", map[string]interface{}{
 		"address": serverAddress,

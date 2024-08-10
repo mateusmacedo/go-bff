@@ -9,14 +9,12 @@ import (
 	"github.com/mateusmacedo/go-bff/pkg/domain"
 )
 
-// simpleEventBus é uma implementação simples de um barramento de eventos que utiliza goroutines.
 type simpleEventBus[E domain.Event[T], T any] struct {
 	handlers map[string][]application.EventHandler[E, T]
 	mu       sync.RWMutex
 	logger   application.AppLogger
 }
 
-// NewSimpleEventBus cria uma nova instância do SimpleEventBus.
 func NewSimpleEventBus[E domain.Event[T], T any](logger application.AppLogger) application.EventBus[E, T] {
 	return &simpleEventBus[E, T]{
 		handlers: make(map[string][]application.EventHandler[E, T]),
@@ -24,14 +22,12 @@ func NewSimpleEventBus[E domain.Event[T], T any](logger application.AppLogger) a
 	}
 }
 
-// RegisterHandler registra um manipulador para um evento específico.
 func (bus *simpleEventBus[E, T]) RegisterHandler(eventName string, handler application.EventHandler[E, T]) {
 	bus.mu.Lock()
 	defer bus.mu.Unlock()
 	bus.handlers[eventName] = append(bus.handlers[eventName], handler)
 }
 
-// Publish publica um evento para os manipuladores registrados usando goroutines.
 func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 	bus.mu.RLock()
 	handlers, found := bus.handlers[event.EventName()]
@@ -41,7 +37,7 @@ func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 		bus.logger.Info(ctx, "no handler registered for event", map[string]interface{}{
 			"event_name": event.EventName(),
 		})
-		return nil // Nenhum manipulador registrado, consideramos um sucesso silencioso
+		return nil
 	}
 
 	var wg sync.WaitGroup
@@ -95,7 +91,6 @@ func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 	}
 }
 
-// collectErrors coleta todos os erros de um canal e retorna um erro agregando todos eles.
 func (bus *simpleEventBus[E, T]) collectErrors(ctx context.Context, errChan <-chan error) error {
 	var errors []error
 	for err := range errChan {

@@ -1,4 +1,3 @@
-// internal/infrastructure/repository.go
 package infrastructure
 
 import (
@@ -10,7 +9,6 @@ import (
 	pkgApp "github.com/mateusmacedo/go-bff/pkg/application"
 )
 
-// InMemoryBusTicketRepository é uma implementação em memória do repositório de passagens.
 type InMemoryBusTicketRepository struct {
 	mu     sync.RWMutex
 	data   map[string]domain.BusTicket
@@ -42,25 +40,6 @@ func (r *InMemoryBusTicketRepository) Save(ctx context.Context, busTicket domain
 
 	return nil
 }
-
-// func (r *InMemoryBusTicketRepository) FindByID(ctx context.Context, id string) (domain.BusTicket, error) {
-// 	r.mu.RLock()
-// 	defer r.mu.RUnlock()
-
-// 	busTicket, exists := r.data[id]
-// 	if !exists {
-// 		r.logger.Error(ctx, "busTicket not found", map[string]interface{}{
-// 			"id": id,
-// 		})
-// 		return domain.BusTicket{}, errors.New("busTicket not found")
-// 	}
-
-// 	r.logger.Info(ctx, "busTicket found", map[string]interface{}{
-// 		"busTicket": busTicket,
-// 	})
-
-// 	return busTicket, nil
-// }
 
 func (r *InMemoryBusTicketRepository) FindByPassengerName(ctx context.Context, passengerName string) ([]domain.BusTicket, error) {
 	r.mu.RLock()
@@ -99,7 +78,6 @@ func (r *InMemoryBusTicketRepository) Update(ctx context.Context, busTicket doma
 	return nil
 }
 
-// Método auxiliar para obter todos os dados (apenas para depuração).
 func (r *InMemoryBusTicketRepository) GetData() map[string]domain.BusTicket {
 	r.mu.RLock()
 	defer r.mu.RUnlock()

@@ -98,7 +98,6 @@ func (h *findBusTicketHandler) Handle(ctx context.Context, query pkgDomain.Query
 	}
 }
 
-// NewFindBusTicketHandler cria um novo handler para a consulta de encontrar passagem.
 func NewFindBusTicketHandler(repo domain.BusTicketRepository, logger pkgApp.AppLogger) pkgApp.QueryHandler[pkgDomain.Query[FindBusTicketData], FindBusTicketData, []domain.BusTicket] {
 	return &findBusTicketHandler{
 		repository: repo,

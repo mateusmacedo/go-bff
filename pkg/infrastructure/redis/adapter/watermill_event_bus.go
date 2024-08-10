@@ -1,4 +1,3 @@
-// internal/adapters/redis_event_bus.go
 package adapter
 
 import (
