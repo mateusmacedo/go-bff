@@ -3,25 +3,25 @@ package application
 import (
 	"context"
 
-	"github.com/mateusmacedo/go-bff/internal/domain"
+	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
 	pkgApp "github.com/mateusmacedo/go-bff/pkg/application"
 	pkgDomain "github.com/mateusmacedo/go-bff/pkg/domain"
 )
 
-type reservePassageHandler struct {
-	repository  domain.PassageRepository
+type reserveBusTicketHandler struct {
+	repository  domain.BusTicketRepository
 	idGenerator pkgDomain.IDGenerator[string]
 	logger      pkgApp.AppLogger
 }
 
-func (h *reservePassageHandler) Handle(ctx context.Context, command pkgDomain.Command[ReservePassageData]) error {
+func (h *reserveBusTicketHandler) Handle(ctx context.Context, command pkgDomain.Command[ReserveBusTicketData]) error {
 	select {
 	case <-ctx.Done():
 		h.logger.Info(ctx, "Contexto cancelado", nil)
 		return ctx.Err()
 	default:
 		data := command.Payload()
-		passage := domain.Passage{
+		passage := domain.BusTicket{
 			ID:            h.idGenerator(),
 			PassengerName: data.PassengerName,
 			DepartureTime: data.DepartureTime,
@@ -48,8 +48,8 @@ func (h *reservePassageHandler) Handle(ctx context.Context, command pkgDomain.Co
 	}
 }
 
-func NewReservePassageHandler(repo domain.PassageRepository, idGenerator pkgDomain.IDGenerator[string], logger pkgApp.AppLogger) pkgApp.CommandHandler[pkgDomain.Command[ReservePassageData], ReservePassageData] {
-	return &reservePassageHandler{
+func NewReserveBusTicketHandler(repo domain.BusTicketRepository, idGenerator pkgDomain.IDGenerator[string], logger pkgApp.AppLogger) pkgApp.CommandHandler[pkgDomain.Command[ReserveBusTicketData], ReserveBusTicketData] {
+	return &reserveBusTicketHandler{
 		repository:  repo,
 		idGenerator: idGenerator,
 		logger:      logger,
@@ -57,15 +57,15 @@ func NewReservePassageHandler(repo domain.PassageRepository, idGenerator pkgDoma
 }
 
 type findPassageHandler struct {
-	repository domain.PassageRepository
+	repository domain.BusTicketRepository
 	logger     pkgApp.AppLogger
 }
 
-func (h *findPassageHandler) Handle(ctx context.Context, query pkgDomain.Query[FindPassageData]) (domain.Passage, error) {
+func (h *findPassageHandler) Handle(ctx context.Context, query pkgDomain.Query[FindBusTicketData]) (domain.BusTicket, error) {
 	select {
 	case <-ctx.Done():
 		h.logger.Info(ctx, "Contexto cancelado", nil)
-		return domain.Passage{}, ctx.Err()
+		return domain.BusTicket{}, ctx.Err()
 	default:
 		data := query.Payload()
 		passage, err := h.repository.FindByID(ctx, data.PassageID)
@@ -77,7 +77,7 @@ func (h *findPassageHandler) Handle(ctx context.Context, query pkgDomain.Query[F
 				"passage_id": data.PassageID,
 				"error":      err,
 			})
-			return domain.Passage{}, err
+			return domain.BusTicket{}, err
 		}
 		h.logger.Info(ctx, "Passagem encontrada com sucesso", map[string]interface{}{
 			"passage": passage,
@@ -86,8 +86,8 @@ func (h *findPassageHandler) Handle(ctx context.Context, query pkgDomain.Query[F
 	}
 }
 
-// NewFindPassageHandler cria um novo handler para a consulta de encontrar passagem.
-func NewFindPassageHandler(repo domain.PassageRepository, logger pkgApp.AppLogger) pkgApp.QueryHandler[pkgDomain.Query[FindPassageData], FindPassageData, domain.Passage] {
+// NewFindBusTicketHandler cria um novo handler para a consulta de encontrar passagem.
+func NewFindBusTicketHandler(repo domain.BusTicketRepository, logger pkgApp.AppLogger) pkgApp.QueryHandler[pkgDomain.Query[FindBusTicketData], FindBusTicketData, domain.BusTicket] {
 	return &findPassageHandler{
 		repository: repo,
 		logger:     logger,

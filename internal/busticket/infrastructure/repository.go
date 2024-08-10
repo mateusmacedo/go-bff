@@ -6,25 +6,25 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/mateusmacedo/go-bff/internal/domain"
+	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
 	pkgApp "github.com/mateusmacedo/go-bff/pkg/application"
 )
 
-// InMemoryPassageRepository é uma implementação em memória do repositório de passagens.
-type InMemoryPassageRepository struct {
+// InMemoryBusTicketRepository é uma implementação em memória do repositório de passagens.
+type InMemoryBusTicketRepository struct {
 	mu     sync.RWMutex
-	data   map[string]domain.Passage
+	data   map[string]domain.BusTicket
 	logger pkgApp.AppLogger
 }
 
-func NewInMemoryPassageRepository(logger pkgApp.AppLogger) *InMemoryPassageRepository {
-	return &InMemoryPassageRepository{
-		data:   make(map[string]domain.Passage),
+func NewInMemoryPassageRepository(logger pkgApp.AppLogger) *InMemoryBusTicketRepository {
+	return &InMemoryBusTicketRepository{
+		data:   make(map[string]domain.BusTicket),
 		logger: logger,
 	}
 }
 
-func (r *InMemoryPassageRepository) Save(ctx context.Context, passage domain.Passage) error {
+func (r *InMemoryBusTicketRepository) Save(ctx context.Context, passage domain.BusTicket) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -43,7 +43,7 @@ func (r *InMemoryPassageRepository) Save(ctx context.Context, passage domain.Pas
 	return nil
 }
 
-func (r *InMemoryPassageRepository) FindByID(ctx context.Context, id string) (domain.Passage, error) {
+func (r *InMemoryBusTicketRepository) FindByID(ctx context.Context, id string) (domain.BusTicket, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -52,7 +52,7 @@ func (r *InMemoryPassageRepository) FindByID(ctx context.Context, id string) (do
 		r.logger.Error(ctx, "passage not found", map[string]interface{}{
 			"id": id,
 		})
-		return domain.Passage{}, errors.New("passage not found")
+		return domain.BusTicket{}, errors.New("passage not found")
 	}
 
 	r.logger.Info(ctx, "passage found", map[string]interface{}{
@@ -62,7 +62,7 @@ func (r *InMemoryPassageRepository) FindByID(ctx context.Context, id string) (do
 	return passage, nil
 }
 
-func (r *InMemoryPassageRepository) Update(ctx context.Context, passage domain.Passage) error {
+func (r *InMemoryBusTicketRepository) Update(ctx context.Context, passage domain.BusTicket) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -82,7 +82,7 @@ func (r *InMemoryPassageRepository) Update(ctx context.Context, passage domain.P
 }
 
 // Método auxiliar para obter todos os dados (apenas para depuração).
-func (r *InMemoryPassageRepository) GetData() map[string]domain.Passage {
+func (r *InMemoryBusTicketRepository) GetData() map[string]domain.BusTicket {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.data
