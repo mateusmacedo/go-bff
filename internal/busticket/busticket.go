@@ -22,13 +22,7 @@ func NewBusTicketSlice(
 	eventBus pkgApp.EventBus[pkgDomain.Event[string], string],
 	repository domain.BusTicketRepository,
 ) *BusTicketSlice {
-	commandHandler := application.NewReserveBusTicketHandler(eventBus, repository, idGenerator, logger)
-	queryHandler := application.NewFindBusTicketHandler(repository, logger)
-	eventHandler := application.NewBusTicketBookedEventHandler(logger)
-
-	commandBus.RegisterHandler("ReserveBusTicket", commandHandler)
-	queryBus.RegisterHandler("FindBusTicket", queryHandler)
-	eventBus.RegisterHandler("BusTicketBooked", eventHandler)
+	registerHandlers(commandBus, queryBus, eventBus, repository, idGenerator, logger)
 
 	httpHandler := infrastructure.NewBusTicketHTTPHandler(commandBus, queryBus)
 
@@ -39,4 +33,21 @@ func NewBusTicketSlice(
 
 func (s *BusTicketSlice) RegisterRoutes(router *chi.Mux) {
 	s.httpHandler.RegisterRoutes(router)
+}
+
+func registerHandlers(
+	commandBus pkgApp.CommandBus[pkgDomain.Command[application.ReserveBusTicketData], application.ReserveBusTicketData],
+	queryBus pkgApp.QueryBus[pkgDomain.Query[application.FindBusTicketData], application.FindBusTicketData, []domain.BusTicket],
+	eventBus pkgApp.EventBus[pkgDomain.Event[string], string],
+	repository domain.BusTicketRepository,
+	idGenerator pkgDomain.IDGenerator[string],
+	logger pkgApp.AppLogger,
+) {
+	commandHandler := application.NewReserveBusTicketHandler(eventBus, repository, idGenerator, logger)
+	queryHandler := application.NewFindBusTicketHandler(repository, logger)
+	eventHandler := application.NewBusTicketBookedEventHandler(logger)
+
+	commandBus.RegisterHandler("ReserveBusTicket", commandHandler)
+	queryBus.RegisterHandler("FindBusTicket", queryHandler)
+	eventBus.RegisterHandler("BusTicketBooked", eventHandler)
 }
