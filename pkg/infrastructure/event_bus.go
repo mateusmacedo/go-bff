@@ -34,7 +34,7 @@ func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 	bus.mu.RUnlock()
 
 	if !found {
-		bus.logger.Info(ctx, "no handler registered for event", map[string]interface{}{
+		LogInfo(ctx, bus.logger, "no handler registered for event", map[string]interface{}{
 			"event_name": event.EventName(),
 		})
 		return nil
@@ -44,15 +44,17 @@ func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 	errChan := make(chan error, len(handlers))
 	done := make(chan struct{})
 
-	bus.logger.Info(ctx, "anonymous goroutine started", nil)
+	LogInfo(ctx, bus.logger, "publishing event", map[string]interface{}{
+		"event_name": event.EventName(),
+	})
 	go func() {
 		bus.logger.Info(ctx, "waiting for goroutines to finish", nil)
 		wg.Wait()
-		bus.logger.Info(ctx, "all goroutines finished", nil)
-		bus.logger.Info(ctx, "closing error channel", nil)
+		LogInfo(ctx, bus.logger, "all goroutines finished", nil)
 		close(errChan)
-		bus.logger.Info(ctx, "closing done channel", nil)
+		LogInfo(ctx, bus.logger, "error channel closed", nil)
 		close(done)
+		LogInfo(ctx, bus.logger, "done channel closed", nil)
 	}()
 
 	for _, handler := range handlers {
@@ -63,14 +65,14 @@ func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 				select {
 				case errChan <- err:
 				case <-ctx.Done():
-					bus.logger.Error(ctx, "error publishing event", map[string]interface{}{
+					LogError(ctx, bus.logger, "context done", ctx.Err(), map[string]interface{}{
 						"event_name": event.EventName(),
 						"error":      err,
 					})
 					return
 				}
 			}
-			bus.logger.Info(ctx, "event published", map[string]interface{}{
+			LogInfo(ctx, bus.logger, "event handled", map[string]interface{}{
 				"event_name": event.EventName(),
 			})
 		}(handler)
@@ -78,13 +80,10 @@ func (bus *simpleEventBus[E, T]) Publish(ctx context.Context, event E) error {
 
 	select {
 	case <-ctx.Done():
-		bus.logger.Error(ctx, "error publishing event", map[string]interface{}{
-			"event_name": event.EventName(),
-			"error":      ctx.Err(),
-		})
+		LogError(ctx, bus.logger, "context done", ctx.Err(), nil)
 		return ctx.Err()
 	case <-done:
-		bus.logger.Info(ctx, "event published", map[string]interface{}{
+		LogInfo(ctx, bus.logger, "event published", map[string]interface{}{
 			"event_name": event.EventName(),
 		})
 		return bus.collectErrors(ctx, errChan)

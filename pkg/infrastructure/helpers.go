@@ -24,6 +24,30 @@ func LogError(ctx context.Context, logger application.AppLogger, message string,
 	logger.Error(ctx, message, logData)
 }
 
+func LogInfo(ctx context.Context, logger application.AppLogger, message string, fields map[string]interface{}) {
+	logData := make(map[string]interface{})
+	for k, v := range fields {
+		logData[k] = v
+	}
+	logger.Info(ctx, message, logData)
+}
+
+func LogDebug(ctx context.Context, logger application.AppLogger, message string, fields map[string]interface{}) {
+	logData := make(map[string]interface{})
+	for k, v := range fields {
+		logData[k] = v
+	}
+	logger.Debug(ctx, message, logData)
+}
+
+func LogTrace(ctx context.Context, logger application.AppLogger, message string, fields map[string]interface{}) {
+	logData := make(map[string]interface{})
+	for k, v := range fields {
+		logData[k] = v
+	}
+	logger.Trace(ctx, message, logData)
+}
+
 func MarshalPayload[T any](payload T) ([]byte, error) {
 	return json.Marshal(payload)
 }

@@ -76,7 +76,7 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 					return
 				}
 
-				bus.logger.Info(ctx, "event handled", map[string]interface{}{
+				infrastructure.LogInfo(ctx, bus.logger, "event handled", map[string]interface{}{
 					"event_name": eventName,
 				})
 				msg.Ack()

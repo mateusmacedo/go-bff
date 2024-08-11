@@ -40,7 +40,7 @@ func (bus *simpleCommandBus[C, D]) Dispatch(ctx context.Context, command C) erro
 		return errors.New("no handler registered for command")
 	}
 
-	bus.logger.Info(ctx, "dispatching command", map[string]interface{}{
+	LogInfo(ctx, bus.logger, "dispatching command", map[string]interface{}{
 		"command_name": command.CommandName(),
 	})
 	return handler.Handle(ctx, command)

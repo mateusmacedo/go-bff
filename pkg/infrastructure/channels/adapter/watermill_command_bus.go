@@ -69,7 +69,7 @@ func (bus *WatermillCommandBus[C, T]) Dispatch(ctx context.Context, command C) e
 		return err
 	}
 
-	bus.logger.Info(ctx, "command dispatched", map[string]interface{}{
+	infrastructure.LogInfo(ctx, bus.logger, "command dispatched", map[string]interface{}{
 		"command_name": command.CommandName(),
 	})
 	return nil
@@ -103,7 +103,7 @@ func (bus *WatermillCommandBus[C, T]) processMessage(ctx context.Context, comman
 		return
 	}
 
-	bus.logger.Info(ctx, "command handled", map[string]interface{}{
+	infrastructure.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
 		"command_name": commandName,
 	})
 	msg.Ack()

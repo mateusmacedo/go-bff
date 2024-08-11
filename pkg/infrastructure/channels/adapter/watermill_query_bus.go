@@ -148,7 +148,7 @@ func (bus *WatermillQueryBus[Q, D, R]) processMessage(ctx context.Context, query
 		return
 	}
 
-	bus.logger.Info(ctx, "query handled", map[string]interface{}{
+	infrastructure.LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
 		"query_name": queryName,
 	})
 	msg.Ack()

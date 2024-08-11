@@ -72,7 +72,7 @@ func (bus *WatermillEventBus[E, D]) Publish(ctx context.Context, event E) error 
 		}
 	}
 
-	bus.logger.Info(ctx, "event published", map[string]interface{}{
+	infrastructure.LogInfo(ctx, bus.logger, "event published", map[string]interface{}{
 		"event_name": eventName,
 	})
 	return nil

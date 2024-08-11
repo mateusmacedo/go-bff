@@ -40,9 +40,8 @@ func (bus *KafkaCommandBus[C, T]) subscribeAndHandle(commandName string) {
 
 	messages, err := bus.subscriber.Subscribe(ctx, commandName)
 	if err != nil {
-		bus.logger.Error(ctx, "error subscribing to command", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error subscribing to command", err, map[string]interface{}{
 			"command_name": commandName,
-			"error":        err,
 		})
 		return
 	}
@@ -55,9 +54,8 @@ func (bus *KafkaCommandBus[C, T]) subscribeAndHandle(commandName string) {
 func (bus *KafkaCommandBus[C, T]) handleMessage(ctx context.Context, commandName string, msg *message.Message) {
 	var payload T
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-		bus.logger.Error(ctx, "error unmarshalling command payload", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error unmarshalling command payload", err, map[string]interface{}{
 			"command_name": commandName,
-			"error":        err,
 		})
 		msg.Nack()
 		return
@@ -66,22 +64,21 @@ func (bus *KafkaCommandBus[C, T]) handleMessage(ctx context.Context, commandName
 	command := &dynamicCommand[T]{commandName: commandName, payload: payload}
 	if typedCommand, ok := interface{}(command).(C); ok {
 		if err := bus.handlers[commandName].Handle(ctx, typedCommand); err != nil {
-			bus.logger.Error(ctx, "error handling command", map[string]interface{}{
+			infrastructure.LogError(ctx, bus.logger, "error handling command", err, map[string]interface{}{
 				"command_name": commandName,
-				"error":        err,
 			})
 			msg.Nack()
 			return
 		}
 	} else {
-		bus.logger.Error(ctx, "error asserting command type", map[string]interface{}{
+		infrastructure.LogError(ctx, bus.logger, "error casting command", nil, map[string]interface{}{
 			"command_name": commandName,
 		})
 		msg.Nack()
 		return
 	}
 
-	bus.logger.Info(ctx, "command handled", map[string]interface{}{
+	infrastructure.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
 		"command_name": commandName,
 	})
 	msg.Ack()

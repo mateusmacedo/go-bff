@@ -93,7 +93,7 @@ func (bus *RedisQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 					return
 				}
 
-				bus.logger.Info(ctx, "query handled", map[string]interface{}{
+				infrastructure.LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
 					"query_name": queryName,
 				})
 				msg.Ack()

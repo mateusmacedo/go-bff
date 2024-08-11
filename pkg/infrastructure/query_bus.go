@@ -55,7 +55,7 @@ func (bus *simpleQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, e
 			return
 		}
 
-		bus.logger.Info(ctx, "dispatching query", map[string]interface{}{
+		LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 		resultChan <- result
@@ -66,7 +66,7 @@ func (bus *simpleQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, e
 		LogError(ctx, bus.logger, "context done", ctx.Err(), nil)
 		return zero, ctx.Err()
 	case result := <-resultChan:
-		bus.logger.Info(ctx, "query handled", map[string]interface{}{
+		LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 		return result, nil

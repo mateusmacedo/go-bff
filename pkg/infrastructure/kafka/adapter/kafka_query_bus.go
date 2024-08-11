@@ -86,14 +86,14 @@ func (bus *KafkaQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 						return
 					}
 				} else {
-					bus.logger.Error(ctx, "error casting query", map[string]interface{}{
+					infrastructure.LogError(ctx, bus.logger, "error casting query", err, map[string]interface{}{
 						"query_name": queryName,
 					})
 					msg.Nack()
 					return
 				}
 
-				bus.logger.Info(ctx, "query handled", map[string]interface{}{
+				infrastructure.LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
 					"query_name": queryName,
 				})
 				msg.Ack()

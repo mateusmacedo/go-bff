@@ -76,7 +76,7 @@ func (bus *RedisEventBus[E, D]) RegisterHandler(eventName string, handler applic
 					return
 				}
 
-				bus.logger.Info(ctx, "event handled", map[string]interface{}{
+				infrastructure.LogInfo(ctx, bus.logger, "event handled", map[string]interface{}{
 					"event_name": eventName,
 				})
 				msg.Ack()
@@ -94,7 +94,7 @@ func (bus *RedisEventBus[E, D]) Publish(ctx context.Context, event E) error {
 		return err
 	}
 
-	bus.logger.Info(ctx, "publishing event", map[string]interface{}{
+	infrastructure.LogInfo(ctx, bus.logger, "publishing event", map[string]interface{}{
 		"event_name": event.EventName(),
 	})
 	msg := message.NewMessage(event.EventName(), payload)

@@ -59,9 +59,8 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 
 				if typedCommand, ok := interface{}(command).(C); ok {
 					if err := handler.Handle(ctx, typedCommand); err != nil {
-						bus.logger.Error(ctx, "error handling command", map[string]interface{}{
+						infrastructure.LogError(ctx, bus.logger, "error handling command", err, map[string]interface{}{
 							"command_name": commandName,
-							"error":        err,
 						})
 						msg.Nack()
 						return
@@ -74,7 +73,7 @@ func (bus *RedisCommandBus[C, T]) RegisterHandler(commandName string, handler ap
 					return
 				}
 
-				bus.logger.Info(ctx, "command handled", map[string]interface{}{
+				infrastructure.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
 					"command_name": commandName,
 				})
 				msg.Ack()
