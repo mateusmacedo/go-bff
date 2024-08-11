@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/mateusmacedo/go-bff/internal/busticket/domain"
+	"github.com/mateusmacedo/go-bff/pkg/application"
 	pkgApp "github.com/mateusmacedo/go-bff/pkg/application"
 )
 
@@ -27,13 +28,13 @@ func (r *InMemoryBusTicketRepository) Save(ctx context.Context, busTicket domain
 	defer r.mu.Unlock()
 
 	if _, exists := r.data[busTicket.ID]; exists {
-		r.logger.Error(ctx, "busTicket already exists", map[string]interface{}{
+		application.LogInfo(ctx, r.logger, "busTicket already exists", map[string]interface{}{
 			"busTicket": busTicket,
 		})
 		return errors.New("busTicket already exists")
 	}
 
-	r.logger.Info(ctx, "busTicket saved", map[string]interface{}{
+	application.LogInfo(ctx, r.logger, "busTicket saved", map[string]interface{}{
 		"busTicket": busTicket,
 	})
 	r.data[busTicket.ID] = busTicket
@@ -52,8 +53,9 @@ func (r *InMemoryBusTicketRepository) FindByPassengerName(ctx context.Context, p
 		}
 	}
 
-	r.logger.Info(ctx, "busTickets found", map[string]interface{}{
-		"busTickets": busTickets,
+	application.LogInfo(ctx, r.logger, "busTickets found", map[string]interface{}{
+		"passengerName": passengerName,
+		"busTickets":    busTickets,
 	})
 
 	return busTickets, nil
@@ -64,15 +66,16 @@ func (r *InMemoryBusTicketRepository) Update(ctx context.Context, busTicket doma
 	defer r.mu.Unlock()
 
 	if _, exists := r.data[busTicket.ID]; !exists {
-		r.logger.Error(ctx, "busTicket not found", map[string]interface{}{
+		application.LogInfo(ctx, r.logger, "busTicket not found", map[string]interface{}{
 			"busTicket": busTicket,
 		})
 		return errors.New("busTicket not found")
 	}
 
-	r.logger.Info(ctx, "busTicket updated", map[string]interface{}{
+	application.LogInfo(ctx, r.logger, "busTicket updated", map[string]interface{}{
 		"busTicket": busTicket,
 	})
+
 	r.data[busTicket.ID] = busTicket
 
 	return nil

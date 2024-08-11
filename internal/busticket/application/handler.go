@@ -17,7 +17,8 @@ type reserveBusTicketHandler struct {
 
 func (h *reserveBusTicketHandler) Handle(ctx context.Context, command pkgDomain.Command[ReserveBusTicketData]) error {
 	if ctx.Err() != nil {
-		return logContextDone(ctx, h.logger)
+		pkgApp.LogError(ctx, h.logger, "Contexto cancelado", ctx.Err(), nil)
+		return ctx.Err()
 	}
 
 	data := command.Payload()
@@ -32,12 +33,14 @@ func (h *reserveBusTicketHandler) Handle(ctx context.Context, command pkgDomain.
 
 	h.logger.Info(ctx, "Salvando passagem", map[string]interface{}{"id": busTicket.ID})
 	if err := h.repository.Save(ctx, busTicket); err != nil {
-		return logError(ctx, h.logger, "Erro ao salvar passagem", err, busTicket)
+		pkgApp.LogError(ctx, h.logger, "Erro ao salvar passagem", err, map[string]interface{}{"bus_ticket": busTicket})
+		return err
 	}
 
 	event := NewBusTicketBookedEvent("BusTicket successfully booked for " + data.PassengerName)
 	if err := h.eventBus.Publish(ctx, event); err != nil {
-		return logError(ctx, h.logger, "Erro ao publicar evento", err, event)
+		pkgApp.LogError(ctx, h.logger, "Erro ao publicar evento", err, nil)
+		return err
 	}
 
 	h.logger.Info(ctx, "BusTicket salva com sucesso", map[string]interface{}{"bus_ticket": busTicket})
@@ -60,17 +63,19 @@ type findBusTicketHandler struct {
 
 func (h *findBusTicketHandler) Handle(ctx context.Context, query pkgDomain.Query[FindBusTicketData]) ([]domain.BusTicket, error) {
 	if ctx.Err() != nil {
-		return nil, logContextDone(ctx, h.logger)
+		pkgApp.LogError(ctx, h.logger, "Contexto cancelado", ctx.Err(), nil)
+		return nil, ctx.Err()
 	}
 
 	data := query.Payload()
 	busTicket, err := h.repository.FindByPassengerName(ctx, data.PassengerName)
-	h.logger.Info(ctx, "Encontrando passagem", map[string]interface{}{"bus_ticket_id": data.PassengerName})
+	pkgApp.LogInfo(ctx, h.logger, "BusTicket encontrado", map[string]interface{}{"bus_ticket": busTicket})
 	if err != nil {
-		return nil, logError(ctx, h.logger, "Erro ao encontrar passagem", err, data.PassengerName)
+		pkgApp.LogError(ctx, h.logger, "Erro ao encontrar passagem", err, map[string]interface{}{"passenger_name": data.PassengerName})
+		return nil, err
 	}
 
-	h.logger.Info(ctx, "BusTicket encontrada com sucesso", map[string]interface{}{"bus_ticket": busTicket})
+	pkgApp.LogInfo(ctx, h.logger, "Passagem encontrada", map[string]interface{}{"bus_ticket": busTicket})
 	return busTicket, nil
 }
 
@@ -87,10 +92,11 @@ type busTicketBookedEventHandler struct {
 
 func (h *busTicketBookedEventHandler) Handle(ctx context.Context, event pkgDomain.Event[string]) error {
 	if ctx.Err() != nil {
-		return logContextDone(ctx, h.logger)
+		pkgApp.LogError(ctx, h.logger, "Contexto cancelado", ctx.Err(), nil)
+		return ctx.Err()
 	}
 
-	h.logger.Info(ctx, "Evento de passagem reservada recebido", map[string]interface{}{"payload": event.Payload()})
+	pkgApp.LogInfo(ctx, h.logger, "Evento recebido", map[string]interface{}{"event": event})
 	return nil
 }
 
@@ -98,17 +104,4 @@ func NewBusTicketBookedEventHandler(logger pkgApp.AppLogger) pkgApp.EventHandler
 	return &busTicketBookedEventHandler{
 		logger: logger,
 	}
-}
-
-func logContextDone(ctx context.Context, logger pkgApp.AppLogger) error {
-	logger.Info(ctx, "Contexto cancelado", nil)
-	return ctx.Err()
-}
-
-func logError(ctx context.Context, logger pkgApp.AppLogger, message string, err error, details interface{}) error {
-	logger.Error(ctx, message, map[string]interface{}{
-		"details": details,
-		"error":   err,
-	})
-	return err
 }
