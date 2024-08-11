@@ -9,7 +9,6 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
-	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type KafkaQueryBus[Q domain.Query[D], D any, R any] struct {
@@ -36,7 +35,7 @@ func (bus *KafkaQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 		defer cancel()
 		messages, err := bus.subscriber.Subscribe(ctx, queryName)
 		if err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error subscribing to query", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error subscribing to query", err, map[string]interface{}{
 				"query_name": queryName,
 			})
 		}
@@ -61,7 +60,7 @@ func (bus *KafkaQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 				if typedQuery, ok := interface{}(query).(Q); ok {
 					result, err := handler.Handle(ctx, typedQuery)
 					if err != nil {
-						infrastructure.LogError(ctx, bus.logger, "error handling query", err, map[string]interface{}{
+						application.LogError(ctx, bus.logger, "error handling query", err, map[string]interface{}{
 							"query_name": queryName,
 						})
 						msg.Nack()
@@ -70,7 +69,7 @@ func (bus *KafkaQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 
 					responsePayload, err := json.Marshal(result)
 					if err != nil {
-						infrastructure.LogError(ctx, bus.logger, "error marshalling query response payload", err, map[string]interface{}{
+						application.LogError(ctx, bus.logger, "error marshalling query response payload", err, map[string]interface{}{
 							"query_name": queryName,
 						})
 						msg.Nack()
@@ -79,21 +78,21 @@ func (bus *KafkaQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 
 					responseMsg := message.NewMessage(queryName+"_response", responsePayload)
 					if err := bus.publisher.Publish(queryName+"_response", responseMsg); err != nil {
-						infrastructure.LogError(ctx, bus.logger, "error publishing query response", err, map[string]interface{}{
+						application.LogError(ctx, bus.logger, "error publishing query response", err, map[string]interface{}{
 							"query_name": queryName,
 						})
 						msg.Nack()
 						return
 					}
 				} else {
-					infrastructure.LogError(ctx, bus.logger, "error casting query", err, map[string]interface{}{
+					application.LogError(ctx, bus.logger, "error casting query", err, map[string]interface{}{
 						"query_name": queryName,
 					})
 					msg.Nack()
 					return
 				}
 
-				infrastructure.LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
+				application.LogInfo(ctx, bus.logger, "query handled", map[string]interface{}{
 					"query_name": queryName,
 				})
 				msg.Ack()
@@ -105,7 +104,7 @@ func (bus *KafkaQueryBus[Q, D, R]) RegisterHandler(queryName string, handler app
 func (bus *KafkaQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, error) {
 	payload, err := json.Marshal(query.Payload())
 	if err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error marshalling query payload", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error marshalling query payload", err, map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 
@@ -115,7 +114,7 @@ func (bus *KafkaQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, er
 
 	msg := message.NewMessage(query.QueryName(), payload)
 	if err := bus.publisher.Publish(query.QueryName(), msg); err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error publishing query", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error publishing query", err, map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 
@@ -125,7 +124,7 @@ func (bus *KafkaQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, er
 
 	responseMessages, err := bus.subscriber.Subscribe(ctx, query.QueryName()+"_response")
 	if err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error subscribing to query response", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error subscribing to query response", err, map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 
@@ -137,7 +136,7 @@ func (bus *KafkaQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, er
 	case responseMsg := <-responseMessages:
 		var result R
 		if err := json.Unmarshal(responseMsg.Payload, &result); err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error unmarshalling query response payload", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error unmarshalling query response payload", err, map[string]interface{}{
 				"query_name": query.QueryName(),
 			})
 
@@ -151,7 +150,7 @@ func (bus *KafkaQueryBus[Q, D, R]) Dispatch(ctx context.Context, query Q) (R, er
 		responseMsg.Ack()
 		return result, nil
 	case <-ctx.Done():
-		infrastructure.LogError(ctx, bus.logger, "error receiving query response", ctx.Err(), map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error receiving query response", ctx.Err(), map[string]interface{}{
 			"query_name": query.QueryName(),
 		})
 		var zero R

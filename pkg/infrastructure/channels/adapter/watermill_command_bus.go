@@ -10,7 +10,6 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
-	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type WatermillCommandBus[C domain.Command[T], T any] struct {
@@ -40,7 +39,7 @@ func (bus *WatermillCommandBus[C, T]) RegisterHandler(commandName string, handle
 		defer cancel()
 		messages, err := bus.subscriber.Subscribe(ctx, commandName)
 		if err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error subscribing to command", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error subscribing to command", err, map[string]interface{}{
 				"command_name": commandName,
 			})
 			panic(err)
@@ -53,9 +52,9 @@ func (bus *WatermillCommandBus[C, T]) RegisterHandler(commandName string, handle
 }
 
 func (bus *WatermillCommandBus[C, T]) Dispatch(ctx context.Context, command C) error {
-	payload, err := infrastructure.MarshalPayload(command.Payload())
+	payload, err := application.MarshalPayload(command.Payload())
 	if err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error marshalling command payload", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error marshalling command payload", err, map[string]interface{}{
 			"command_name": command.CommandName(),
 		})
 		return err
@@ -63,13 +62,13 @@ func (bus *WatermillCommandBus[C, T]) Dispatch(ctx context.Context, command C) e
 
 	msg := message.NewMessage(watermill.NewUUID(), payload)
 	if err := bus.publisher.Publish(command.CommandName(), msg); err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error publishing command", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error publishing command", err, map[string]interface{}{
 			"command_name": command.CommandName(),
 		})
 		return err
 	}
 
-	infrastructure.LogInfo(ctx, bus.logger, "command dispatched", map[string]interface{}{
+	application.LogInfo(ctx, bus.logger, "command dispatched", map[string]interface{}{
 		"command_name": command.CommandName(),
 	})
 	return nil
@@ -78,7 +77,7 @@ func (bus *WatermillCommandBus[C, T]) Dispatch(ctx context.Context, command C) e
 func (bus *WatermillCommandBus[C, T]) processMessage(ctx context.Context, commandName string, handler application.CommandHandler[C, T], msg *message.Message) {
 	var payload T
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error unmarshalling command payload", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error unmarshalling command payload", err, map[string]interface{}{
 			"command_name": commandName,
 		})
 		return
@@ -91,19 +90,19 @@ func (bus *WatermillCommandBus[C, T]) processMessage(ctx context.Context, comman
 
 	if typedCommand, ok := interface{}(command).(C); ok {
 		if err := handler.Handle(ctx, typedCommand); err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error handling command", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error handling command", err, map[string]interface{}{
 				"command_name": commandName,
 			})
 			return
 		}
 	} else {
-		infrastructure.LogError(ctx, bus.logger, "error asserting command type", nil, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error asserting command type", nil, map[string]interface{}{
 			"command_name": commandName,
 		})
 		return
 	}
 
-	infrastructure.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
+	application.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
 		"command_name": commandName,
 	})
 	msg.Ack()

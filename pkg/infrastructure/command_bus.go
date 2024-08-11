@@ -34,13 +34,13 @@ func (bus *simpleCommandBus[C, D]) Dispatch(ctx context.Context, command C) erro
 	bus.mu.RUnlock()
 
 	if !found {
-		LogError(ctx, bus.logger, "no handler registered for command", nil, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "no handler registered for command", nil, map[string]interface{}{
 			"command_name": command.CommandName(),
 		})
 		return errors.New("no handler registered for command")
 	}
 
-	LogInfo(ctx, bus.logger, "dispatching command", map[string]interface{}{
+	application.LogInfo(ctx, bus.logger, "dispatching command", map[string]interface{}{
 		"command_name": command.CommandName(),
 	})
 	return handler.Handle(ctx, command)

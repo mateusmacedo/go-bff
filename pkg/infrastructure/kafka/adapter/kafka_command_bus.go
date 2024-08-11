@@ -9,7 +9,6 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
-	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type KafkaCommandBus[C domain.Command[T], T any] struct {
@@ -40,7 +39,7 @@ func (bus *KafkaCommandBus[C, T]) subscribeAndHandle(commandName string) {
 
 	messages, err := bus.subscriber.Subscribe(ctx, commandName)
 	if err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error subscribing to command", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error subscribing to command", err, map[string]interface{}{
 			"command_name": commandName,
 		})
 		return
@@ -54,7 +53,7 @@ func (bus *KafkaCommandBus[C, T]) subscribeAndHandle(commandName string) {
 func (bus *KafkaCommandBus[C, T]) handleMessage(ctx context.Context, commandName string, msg *message.Message) {
 	var payload T
 	if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error unmarshalling command payload", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error unmarshalling command payload", err, map[string]interface{}{
 			"command_name": commandName,
 		})
 		msg.Nack()
@@ -64,21 +63,21 @@ func (bus *KafkaCommandBus[C, T]) handleMessage(ctx context.Context, commandName
 	command := &dynamicCommand[T]{commandName: commandName, payload: payload}
 	if typedCommand, ok := interface{}(command).(C); ok {
 		if err := bus.handlers[commandName].Handle(ctx, typedCommand); err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error handling command", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error handling command", err, map[string]interface{}{
 				"command_name": commandName,
 			})
 			msg.Nack()
 			return
 		}
 	} else {
-		infrastructure.LogError(ctx, bus.logger, "error casting command", nil, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error casting command", nil, map[string]interface{}{
 			"command_name": commandName,
 		})
 		msg.Nack()
 		return
 	}
 
-	infrastructure.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
+	application.LogInfo(ctx, bus.logger, "command handled", map[string]interface{}{
 		"command_name": commandName,
 	})
 	msg.Ack()
@@ -87,7 +86,7 @@ func (bus *KafkaCommandBus[C, T]) handleMessage(ctx context.Context, commandName
 func (bus *KafkaCommandBus[C, T]) Dispatch(ctx context.Context, command C) error {
 	payload, err := json.Marshal(command.Payload())
 	if err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error marshalling command payload", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error marshalling command payload", err, map[string]interface{}{
 			"command_name": command.CommandName(),
 		})
 		return err
@@ -95,7 +94,7 @@ func (bus *KafkaCommandBus[C, T]) Dispatch(ctx context.Context, command C) error
 
 	msg := message.NewMessage(command.CommandName(), payload)
 	if err := bus.publisher.Publish(command.CommandName(), msg); err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error publishing command", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error publishing command", err, map[string]interface{}{
 			"command_name": command.CommandName(),
 		})
 		return err

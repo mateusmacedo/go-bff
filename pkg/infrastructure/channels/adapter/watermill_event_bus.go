@@ -9,7 +9,6 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
-	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type WatermillEventBus[E domain.Event[D], D any] struct {
@@ -47,9 +46,9 @@ func (bus *WatermillEventBus[E, D]) Publish(ctx context.Context, event E) error 
 		return nil
 	}
 
-	payload, err := infrastructure.MarshalPayload(event.Payload())
+	payload, err := application.MarshalPayload(event.Payload())
 	if err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error marshalling event payload", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error marshalling event payload", err, map[string]interface{}{
 			"event_name": eventName,
 		})
 		return err
@@ -57,7 +56,7 @@ func (bus *WatermillEventBus[E, D]) Publish(ctx context.Context, event E) error 
 
 	msg := message.NewMessage(watermill.NewUUID(), payload)
 	if err := bus.publisher.Publish(eventName, msg); err != nil {
-		infrastructure.LogError(ctx, bus.logger, "error publishing event", err, map[string]interface{}{
+		application.LogError(ctx, bus.logger, "error publishing event", err, map[string]interface{}{
 			"event_name": eventName,
 		})
 		return err
@@ -65,14 +64,14 @@ func (bus *WatermillEventBus[E, D]) Publish(ctx context.Context, event E) error 
 
 	for _, handler := range handlers {
 		if err := handler.Handle(ctx, event); err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error handling event", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error handling event", err, map[string]interface{}{
 				"event_name": eventName,
 			})
 			return err
 		}
 	}
 
-	infrastructure.LogInfo(ctx, bus.logger, "event published", map[string]interface{}{
+	application.LogInfo(ctx, bus.logger, "event published", map[string]interface{}{
 		"event_name": eventName,
 	})
 	return nil

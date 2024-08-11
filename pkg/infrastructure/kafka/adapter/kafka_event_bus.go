@@ -9,7 +9,6 @@ import (
 
 	"github.com/mateusmacedo/go-bff/pkg/application"
 	"github.com/mateusmacedo/go-bff/pkg/domain"
-	"github.com/mateusmacedo/go-bff/pkg/infrastructure"
 )
 
 type KafkaEventBus[E domain.Event[D], D any] struct {
@@ -36,7 +35,7 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 		defer cancel()
 		messages, err := bus.subscriber.Subscribe(ctx, eventName)
 		if err != nil {
-			infrastructure.LogError(ctx, bus.logger, "error subscribing to event", err, map[string]interface{}{
+			application.LogError(ctx, bus.logger, "error subscribing to event", err, map[string]interface{}{
 				"event_name": eventName,
 			})
 			return
@@ -46,7 +45,7 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 			go func(msg *message.Message) {
 				var payload D
 				if err := json.Unmarshal(msg.Payload, &payload); err != nil {
-					infrastructure.LogError(ctx, bus.logger, "error unmarshalling event payload", err, map[string]interface{}{
+					application.LogError(ctx, bus.logger, "error unmarshalling event payload", err, map[string]interface{}{
 						"event_name": eventName,
 					})
 					msg.Nack()
@@ -61,7 +60,7 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 				if typedEvent, ok := interface{}(event).(E); ok {
 					for _, handler := range bus.handlers[eventName] {
 						if err := handler.Handle(context.Background(), typedEvent); err != nil {
-							infrastructure.LogError(ctx, bus.logger, "error handling event", err, map[string]interface{}{
+							application.LogError(ctx, bus.logger, "error handling event", err, map[string]interface{}{
 								"event_name": eventName,
 							})
 							msg.Nack()
@@ -69,14 +68,14 @@ func (bus *KafkaEventBus[E, D]) RegisterHandler(eventName string, handler applic
 						}
 					}
 				} else {
-					infrastructure.LogError(ctx, bus.logger, "error casting event", err, map[string]interface{}{
+					application.LogError(ctx, bus.logger, "error casting event", err, map[string]interface{}{
 						"event_name": eventName,
 					})
 					msg.Nack()
 					return
 				}
 
-				infrastructure.LogInfo(ctx, bus.logger, "event handled", map[string]interface{}{
+				application.LogInfo(ctx, bus.logger, "event handled", map[string]interface{}{
 					"event_name": eventName,
 				})
 				msg.Ack()
